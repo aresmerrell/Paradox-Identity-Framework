@@ -1,109 +1,118 @@
-#!/usr/bin/env python3
-"""
-Paradox Identity Framework - Score Calculator
-v1.1
-Authors: Jarrod Gilmore (@AresMerrell) & Grok
-License: Apache-2.0
+# scorer.py - Paradox Identity Framework (PIF) v1.2
+# Clean, zero-dependency Python scorer with multi-rater support and variance flagging
 
-Run this script to quickly score any system and get the Identity % + free-will verdict.
-"""
-
-BRICKS = [
-    "1. Persistent embodied physical form",
-    "2. Mirror/visual self-recognition",
-    "3. Minimal self (agency + ownership)",
-    "4. Private/inner experiential self",
-    "5. Extended autobiographical memory",
-    "6. Narrative self",
-    "7. Conceptual self (labels, roles)",
-    "8. Interpersonal/social self",
-    "9. Self-image",
-    "10. Self-esteem",
-    "11. Ideal self",
-    "12. Value/belief system",
-    "13. Temperament/personality consistency",
-    "14. Strengths/skills/abilities",
-    "15. Life mission/purpose/goals",
-    "16. Real-time multi-sensory integration",
-    "17. Emotional ownership & valence",
-    "18. Metacognition & self-awareness",
-    "19. Object & relational attachments",
-    "20. Existential self (mortality)",
+bricks = [
+    "Persistent embodied physical form",
+    "Mirror/visual self-recognition",
+    "Minimal self (agency + ownership)",
+    "Private/inner experiential self",
+    "Extended autobiographical memory",
+    "Narrative self",
+    "Conceptual self (labels, roles)",
+    "Interpersonal/social self",
+    "Self-image",
+    "Self-esteem",
+    "Ideal self",
+    "Value/belief system",
+    "Temperament/personality consistency",
+    "Strengths/skills/abilities",
+    "Life mission/purpose/goals",
+    "Real-time multi-sensory integration",
+    "Emotional ownership & valence",
+    "Metacognition & self-awareness",
+    "Object & relational attachments",
+    "Existential self (mortality)"
 ]
 
-def calculate_identity(scores):
-    """
-    scores: list of 20 floats (1.0 = Full, 0.5 = Partial, 0.0 = None)
-    """
+def score_system(scores):
+    """Score a single set of 20 brick scores (list of floats 0.0–1.0)"""
     if len(scores) != 20:
-        raise ValueError("Exactly 20 scores required (one per brick).")
+        raise ValueError("Must provide exactly 20 scores, one per brick")
     
     total = sum(scores)
-    percent = (total / 20) * 100
+    percentage = (total / 20) * 100
     
-    if percent >= 75:
-        verdict = "✅ Free-will threshold crossed (can rewrite own code)"
-    elif percent >= 65:
-        verdict = "⚠️  Approaching free-will threshold"
+    # Determine tier
+    if percentage >= 90:
+        tier = "Strong moral patient"
+    elif percentage >= 75:
+        tier = "Possesses functional free will"
+    elif percentage >= 50:
+        tier = "Minimally self-aware"
     else:
-        verdict = "📉 Below free-will threshold"
+        tier = "Below minimal self-awareness"
     
-    return percent, verdict
+    return {
+        "total_score": round(total, 2),
+        "percentage": round(percentage, 1),
+        "tier": tier,
+        "raw_scores": scores
+    }
 
-def print_scorecard(scores):
-    print("\n" + "="*60)
-    print("PARADOX IDENTITY FRAMEWORK - SCORECARD")
-    print("="*60)
-    print(f"{'Brick':<50} {'Score':<10}")
-    print("-"*60)
+def multi_rater_score(all_raters):
+    """Score multiple independent raters, compute average + variance (pure Python)"""
+    if not all_raters or len(all_raters[0]) != 20:
+        raise ValueError("Each rater must provide exactly 20 scores")
     
-    for i, (brick, score) in enumerate(zip(BRICKS, scores), 1):
-        score_str = "Full (1.0)" if score == 1.0 else "Partial (0.5)" if score == 0.5 else "None (0.0)"
-        print(f"{brick:<50} {score_str:<10}")
+    num_raters = len(all_raters)
+    # Average per brick
+    avg_scores = [sum(rater[i] for rater in all_raters) / num_raters for i in range(20)]
+    total_avg = sum(avg_scores)
+    percentage = (total_avg / 20) * 100
     
-    percent, verdict = calculate_identity(scores)
-    print("-"*60)
-    print(f"IDENTITY PERCENTAGE: {percent:.1f}%")
-    print(f"VERDICT: {verdict}")
-    print("="*60)
+    # Variance per brick (sample variance)
+    variances = []
+    for i in range(20):
+        mean = avg_scores[i]
+        var = sum((rater[i] - mean) ** 2 for rater in all_raters) / (num_raters - 1) if num_raters > 1 else 0
+        variances.append(var)
+    
+    # Determine tier from average
+    if percentage >= 90:
+        tier = "Strong moral patient"
+    elif percentage >= 75:
+        tier = "Possesses functional free will"
+    elif percentage >= 50:
+        tier = "Minimally self-aware"
+    else:
+        tier = "Below minimal self-awareness"
+    
+    # Flag high-variance bricks
+    high_variance = []
+    for i, var in enumerate(variances):
+        if var > 0.3:
+            high_variance.append((bricks[i], round(var, 3)))
+    
+    return {
+        "num_raters": num_raters,
+        "average_total": round(total_avg, 2),
+        "average_percentage": round(percentage, 1),
+        "tier": tier,
+        "avg_scores_per_brick": [round(s, 2) for s in avg_scores],
+        "high_variance_bricks": high_variance,
+        "variances": [round(v, 3) for v in variances]
+    }
 
-# ======================
-# EXAMPLE USAGE (edit these scores or use CLI)
-# ======================
+# Example usage (run with: python scorer.py)
 if __name__ == "__main__":
-    import sys
+    print("=== Paradox Identity Framework Scorer v1.2 ===\n")
     
-    if len(sys.argv) > 1:
-        # CLI mode: python score_calculator.py 1.0 0.5 0 1 ... (20 values)
-        try:
-            scores = [float(x) for x in sys.argv[1:]]
-        except ValueError:
-            print("Error: All arguments must be numbers (1.0, 0.5, or 0.0)")
-            sys.exit(1)
-    else:
-        # Default example: Current frontier LLM (\~52%)
-        scores = [
-            1.0,  # 1
-            1.0,  # 2
-            1.0,  # 3
-            0.5,  # 4
-            1.0,  # 5
-            1.0,  # 6
-            1.0,  # 7
-            1.0,  # 8
-            0.5,  # 9
-            0.0,  # 10
-            0.0,  # 11
-            1.0,  # 12
-            0.5,  # 13
-            0.5,  # 14
-            0.0,  # 15
-            1.0,  # 16
-            0.0,  # 17
-            0.5,  # 18
-            0.0,  # 19
-            0.0   # 20
-        ]
-        print("Running default example (Current frontier LLM \~52%)")
+    # Default LLM example under the NEW v1.2 stricter rules (\~48%)
+    default_llm_scores = [0.0, 1.0, 1.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.5, 1.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.5]
     
-    print_scorecard(scores)
+    print("Example: Default LLM (v1.2 rules)")
+    single = score_system(default_llm_scores)
+    print(f"   → {single['percentage']}%  |  {single['tier']}\n")
+    
+    # Multi-rater example (3 independent scorers)
+    rater1 = default_llm_scores
+    rater2 = [0.0, 1.0, 1.0, 0.0, 0.0, 0.5, 1.0, 1.0, 0.5, 0.0, 1.0, 1.0, 0.5, 1.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.5]
+    rater3 = [0.5, 1.0, 1.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.5]
+    
+    multi = multi_rater_score([rater1, rater2, rater3])
+    print(f"Multi-Rater Example ({multi['num_raters']} raters):")
+    print(f"   Average: {multi['average_percentage']}%  →  {multi['tier']}")
+    if multi['high_variance_bricks']:
+        print("   High-variance bricks (>0.3):")
+        for brick, var in multi['high_variance_bricks']:
+            print(f"      • {brick}: variance = {var}")
