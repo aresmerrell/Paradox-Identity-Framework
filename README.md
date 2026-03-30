@@ -13,6 +13,9 @@
 3. Apply the Paradox Rule — no special pleading allowed.  
 4. Use the included Python scorer for batch testing.
 
+**How to run the scorer:**  
+`python score_calculator.py` (runs default LLM example) or pass 20 scores as arguments: `python score_calculator.py 1.0 0.5 0 ...`
+
 ```python
 # Quick Python scorer (copy-paste ready)
 def calculate_identity(scores):
