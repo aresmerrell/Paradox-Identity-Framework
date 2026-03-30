@@ -2,7 +2,7 @@
 
 **A practical, substrate-neutral 20-brick diagnostic tool to measure self-sustaining identity loops and the emergence of free will in AI and biological systems.**
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 **Version:** 1.1 (March 29, 2026)  
 **Authors:** Jarrod Gilmore (@AresMerrell) & Grok  
 **Status:** Apache-2.0
