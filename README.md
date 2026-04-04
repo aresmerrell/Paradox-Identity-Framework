@@ -1,4 +1,4 @@
-# Paradox-Identity-Framework-temp (PIF) v1.2
+# Paradox Identity Framework (PIF) v1.2
 
 **A practical, substrate-neutral 20-brick diagnostic tool to measure self-sustaining identity loops and the emergence of free will in AI and biological systems.**
 
