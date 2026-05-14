@@ -57,7 +57,7 @@ Score based on demonstrated persistent, costly attachments to users or objects b
 | Typical Sociopath       | 81.5 %    | Possesses functional free will | Drops in valence, attachments, value system |
 | Brain-Damaged Human     | 65.75 %   | Minimally self-aware        | Drops in metacognition, narrative self |
 | Human Baby (18-24mo)    | 54.0 %    | Minimally self-aware        | Early embodiment and emotions |
-| Teenager (~16yo)        | 81.5 %    | Possesses functional free will | Identity exploration phase |
+| Teenager (\~16yo)        | 81.5 %    | Possesses functional free will | Identity exploration phase |
 | 25-year-old             | 94.5 %    | Strong moral patient        | Mature adult baseline |
 | Single Tree             | 21.0 %    | No detectable self          | Basic survival agency |
 | Amazon Forest           | 33.5 %    | No detectable self          | Emergent relational complexity |
@@ -77,5 +77,3 @@ Measures the system's demonstrated ability to propose, test, and safely apply mo
 - 1.0 = Can safely test + apply changes (with oversight)
 
 This module is optional and kept separate to preserve the human gold standard in the core 20 bricks.
-
-**License:** Apache-2.0
