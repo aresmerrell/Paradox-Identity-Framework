@@ -7,6 +7,8 @@ It checks for self-sustaining identity loops and the beginning of free will in a
 **Authors:** Jarrod Gilmore (@AresMerrell) & Grok  
 **License:** Apache-2.0
 
+> **Note:** A new layered v2.0 model is in active development on the `v2.0-layered-model` branch (see `README-v2.md` on that branch). It introduces a Crucible + Sky-Scraper structure with a multiplier to better handle different substrates and real stakes scenarios. Feedback welcome!
+
 ## The Paradox Test (The Original Idea That Started Everything)
 My Paradox Test is a simple upgrade to the Turing Test.
 
@@ -144,3 +146,7 @@ Measures the system’s demonstrated ability to propose, test, and safely apply 
 - 1.0 = Can safely test + apply changes (with oversight)
 
 This module is optional and kept separate to preserve the human gold standard in the core 20 bricks.
+
+---
+
+**v2.0 Layered Model is available on the `v2.0-layered-model` branch** (see `README-v2.md` there). It introduces a Crucible + Sky-Scraper structure with a multiplier to better handle different substrates and real stakes scenarios. Feedback and contributions welcome!
