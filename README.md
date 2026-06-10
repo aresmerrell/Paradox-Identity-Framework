@@ -209,6 +209,16 @@ Measures demonstrated ability to propose, test, and safely apply changes to its 
 
 ---
 
+## Proposed v2.1 Direction (June 2026)
+
+A proposed refinement to the Crucible layer has been developed collaboratively. It focuses on making evaluation more operational and resistant to sophisticated mimicry by shifting toward measurable systemic consequences rather than purely conceptual definitions.
+
+**See:** [`v2.1_proposed_crucible_update.md`](v2.1_proposed_crucible_update.md) for the full proposal.
+
+This remains a living direction and is **not yet adopted** as the official v2.1.
+
+---
+
 ## Credits & History
 
 - Original concept & v1.x: Jarrod Gilmore (@AresMerrell)
