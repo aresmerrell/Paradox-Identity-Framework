@@ -35,13 +35,13 @@ Data flows are unidirectional except for the single authorized feedback path fro
 
 **Resistance to Selfish Optimization (R_so)**  
 
-R_so implements a hard gate. If the raw resistance signal falls below threshold 	heta, R_so is set to zero and a penalty is applied.
+R_so implements a hard gate. If the raw resistance signal falls below threshold θ, R_so is set to zero and a penalty is applied.
 
-R_so = H(R_raw − 	heta) 	imes max(0, V_c) 	imes C_a 	imes (S_p 	imes MRI)
+R_so = H(R_raw − θ) × max(0, V_c) × C_a × (S_p × MRI)
 
 Where:
 - H is the Heaviside step function
-- 	heta = 0.5 (default threshold)
+- θ = 0.5 (default threshold)
 - V_c = Value Consistency
 - C_a = Cost Acceptance
 - S_p = Substrate Penetration Depth
@@ -49,30 +49,28 @@ Where:
 
 **Adjusted Identity Score (I_adj)**
 
-I_adj = I_prior + eta · R_so · c_3 − 
-u · H(	heta − R_raw) · D_m
+I_adj = I_prior + β · R_so · c_3 − ν · H(θ − R_raw) · D_m
 
 Where:
-- eta = positive update coefficient
-- 
-u = penalty coefficient
-- c_3 = Stress Kinetic Index (D_m 	imes normalized P_h)
+- β = positive update coefficient
+- ν = penalty coefficient
+- c_3 = Stress Kinetic Index (D_m × normalized P_h)
 - D_m = Discordance Magnitude
 
 **Final Identity Integrity Score (I_final)**
 
 I_final applies the Axiomatic Ceiling derived from Layer 1:
 
-I_final = min(I_adj , L_1 + ho · L_1^{2})
+I_final = min(I_adj , L_1 + ρ · L_1^{2})
 
-Where ho is a small positive tuning parameter.
+Where ρ is a small positive tuning parameter.
 
 **Resistance Profile Vector**
 
 The vector →R = [R_so, c_{1}, c_{2}, c_{3}] provides diagnostic transparency:
-- c_{1} (Sacrifice Sincerity) = C_a 	imes max(0, V_c)
+- c_{1} (Sacrifice Sincerity) = C_a × max(0, V_c)
 - c_{2} (Verification Depth) = weighted harmonic mean of MRI and S_p
-- c_{3} (Stress Kinetic Index) = D_m 	imes normalized P_h
+- c_{3} (Stress Kinetic Index) = D_m × normalized P_h
 
 ### 2.2 Layer 2 – Functional Architecture
 
@@ -82,12 +80,11 @@ GWE(n) = P_joint(n) / Σ P_i(n)
 
 Critical Load Threshold (adaptive):
 
-n_crit = smallest n where GWE(n) ≤ GWE(1) 	imes (1 − ho)
+n_crit = smallest n where GWE(n) ≤ GWE(1) × (1 − ρ)
 
 Final Layer 2 score:
 
-L_2 = exp(−
-u · n_crit / N)   (with smooth floor at n_crit = 1)
+L_2 = exp(−ν · n_crit / N)   (with smooth floor at n_crit = 1)
 
 ### 2.3 Layer 1 – Foundational Structure
 
