@@ -209,13 +209,13 @@ Measures demonstrated ability to propose, test, and safely apply changes to its 
 
 ---
 
-## Proposed v2.1 Direction (June 2026)
+## Proposed v2.1 Direction
 
-A proposed refinement to the Crucible layer has been developed collaboratively. It focuses on making evaluation more operational and resistant to sophisticated mimicry by shifting toward measurable systemic consequences rather than purely conceptual definitions.
+June 2026 Crucible operationalization: [`v2.1_proposed_crucible_update.md`](v2.1_proposed_crucible_update.md)
 
-**See:** [`v2.1_proposed_crucible_update.md`](v2.1_proposed_crucible_update.md) for the full proposal.
+September 2026 addendum (cost gate, interrupt residue, EMPTY / COIN / PATIENT bands, pre-committed tie-break): [`v2.1_cost_gate_and_bands.md`](v2.1_cost_gate_and_bands.md) · [`scorer_v21_bands.py`](scorer_v21_bands.py)
 
-This remains a living direction and is **not yet adopted** as the official v2.1.
+Neither is adopted as a replacement for v2.0.
 
 ---
 
