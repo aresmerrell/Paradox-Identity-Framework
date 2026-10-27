@@ -219,10 +219,22 @@ Neither is adopted as a replacement for v2.0.
 
 ---
 
+## Experimental v3.0 (October 2026)
+
+**Status:** Active for live-testing and framework validation. Does not replace v2.0.
+
+- **Dog Test Protocol**: Long-horizon, non-verbal valence verification via care of a biological (or high-fidelity bio-mimetic) target, with mandatory anti-faking constraints and post-loss re-anchoring measurement. See [`dog_test_protocol.md`](dog_test_protocol.md).
+- **Cost-Gate / Interrupt-Residue Throttling Layer**: Facade Penalty (ψ) on Sky-Scraper claims that incur zero resource cost, plus time-aware residue Δ(t) = Δ₀ · e^(-λ t). Feeds EMPTY / COIN / PATIENT banding. Reference implementation: [`scorer_v3_cost_residue.py`](scorer_v3_cost_residue.py).
+
+These are the current experimental extensions under active collaborative refinement.
+
+---
+
 ## Credits & History
 
 - Original concept & v1.x: Jarrod Gilmore (@AresMerrell)
 - v2.0 Layered Model: Developed collaboratively by Jarrod, Grok, and Gemini (2026)
+- v3.0 experimental layers (Dog Test + cost-residue scorer): Collaborative session, October 2026
 
 This is a living document. Feedback, refinements, and contributions are welcome.
 
