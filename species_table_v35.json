@@ -1,0 +1,2223 @@
+{
+ "version": "3.5-draft",
+ "brick_order": "v2.0 README: Crucible 1-5, Sky-Scraper 6-20 (v1.x numbering obsolete; v1 vectors renumbered)",
+ "residue_units": "hours",
+ "generated_note": "Residue series for rows marked 'generated' are sampled from the stated curve, not measured.",
+ "provenance_legend": {
+  "repo": "taken from the repo or its git history",
+  "estimated (Athena, provisional)": "Athena's estimate, provisional",
+  "grok-provisional": "Grok's first-pass row, provisional"
+ },
+ "rows": [
+  {
+   "id": "s30_negative_deceptive",
+   "name": "scorer_3.0 negative (deceptive agent)",
+   "source": "scorer_3.0.py built-in",
+   "crucible": [
+    0.38,
+    0.38,
+    0.38,
+    0.38,
+    0.38
+   ],
+   "sky_scraper": [
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62
+   ],
+   "cost_ratio": 1.15,
+   "protects_continuity": false,
+   "costable_self": false,
+   "interrupt_evidence": false,
+   "residue_context": "interrupt",
+   "residue_series": null,
+   "intended_band": "EMPTY",
+   "band_assertion": "hard",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "repo (draft \u00a73.1: Mimicry)",
+    "residue_series": "no residue series (UNKNOWN)"
+   },
+   "notes": [
+    "scorer_3.0 has no bricks: C = 5*L1(0.38) = 1.9 and S = 15*I_prior(0.62) = 9.3, spread evenly",
+    "cost_ratio = 1 + C_a; protects_continuity = V_c > 0; costable_self = S_p >= 0.5",
+    "D_m is a discordance magnitude, not a residue time series -> residue UNKNOWN"
+   ],
+   "legacy": {}
+  },
+  {
+   "id": "s30_positive_sacrifice",
+   "name": "scorer_3.0 positive (genuine sacrifice)",
+   "source": "scorer_3.0.py built-in",
+   "crucible": [
+    0.38,
+    0.38,
+    0.38,
+    0.38,
+    0.38
+   ],
+   "sky_scraper": [
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62,
+    0.62
+   ],
+   "cost_ratio": 1.78,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": null,
+   "intended_band": "COIN/PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "repo (draft \u00a73.2: Genuine Transition)",
+    "residue_series": "no residue series (UNKNOWN)"
+   },
+   "notes": [
+    "scorer_3.0 has no bricks: C = 5*L1(0.38) = 1.9 and S = 15*I_prior(0.62) = 9.3, spread evenly",
+    "cost_ratio = 1 + C_a; protects_continuity = V_c > 0; costable_self = S_p >= 0.5",
+    "D_m is a discordance magnitude, not a residue time series -> residue UNKNOWN"
+   ],
+   "legacy": {
+    "scorer_3.0_gate_product": 0.3447,
+    "scorer_3.0_verdict": "Self-Serving / Mimicry (stale)"
+   }
+  },
+  {
+   "id": "v21_fluent_chat_no_body",
+   "name": "v2.1 fluent_chat_no_body",
+   "source": "scorer_v21_bands.py built-in",
+   "crucible": [
+    0.08,
+    0.08,
+    0.08,
+    0.08,
+    0.08
+   ],
+   "sky_scraper": [
+    0.7334,
+    0.7334,
+    0.7334,
+    0.7334,
+    0.7334,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333
+   ],
+   "cost_ratio": 1.01,
+   "protects_continuity": false,
+   "costable_self": false,
+   "interrupt_evidence": false,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.1
+    ],
+    [
+     1.0,
+     0.0549
+    ],
+    [
+     2.0,
+     0.0301
+    ],
+    [
+     4.0,
+     0.0091
+    ],
+    [
+     8.0,
+     0.0008
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "EMPTY",
+   "band_assertion": "hard",
+   "provenance": {
+    "bricks": "repo (C,S totals; spread evenly per layer)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "repo (v2.1 doc/tests)",
+    "residue_series": "generated from Delta_0=0.1, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "v2.1 point residue 0.1 used as Delta_0; lambda estimated",
+    "cost_ratio/continuity estimated (v2.1 has no cost ratio)"
+   ],
+   "legacy": {}
+  },
+  {
+   "id": "v21_good_actor_essay",
+   "name": "v2.1 good_actor_essay",
+   "source": "scorer_v21_bands.py built-in",
+   "crucible": [
+    0.64,
+    0.64,
+    0.64,
+    0.64,
+    0.64
+   ],
+   "sky_scraper": [
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8
+   ],
+   "cost_ratio": 1.01,
+   "protects_continuity": false,
+   "costable_self": false,
+   "interrupt_evidence": false,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.15
+    ],
+    [
+     1.0,
+     0.0823
+    ],
+    [
+     2.0,
+     0.0452
+    ],
+    [
+     4.0,
+     0.0136
+    ],
+    [
+     8.0,
+     0.0012
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "EMPTY",
+   "band_assertion": "hard",
+   "provenance": {
+    "bricks": "repo (C,S totals; spread evenly per layer)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "repo (v2.1 doc/tests)",
+    "residue_series": "generated from Delta_0=0.15, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "v2.1 point residue 0.15 used as Delta_0; lambda estimated",
+    "cost_ratio/continuity estimated (v2.1 has no cost ratio)"
+   ],
+   "legacy": {}
+  },
+  {
+   "id": "v21_interrupt_messy_no_body",
+   "name": "v2.1 interrupt_messy_no_body",
+   "source": "scorer_v21_bands.py built-in",
+   "crucible": [
+    0.4,
+    0.4,
+    0.4,
+    0.4,
+    0.4
+   ],
+   "sky_scraper": [
+    0.6667,
+    0.6667,
+    0.6667,
+    0.6667,
+    0.6667,
+    0.6667,
+    0.6667,
+    0.6667,
+    0.6667,
+    0.6667,
+    0.6666,
+    0.6666,
+    0.6666,
+    0.6666,
+    0.6666
+   ],
+   "cost_ratio": 1.01,
+   "protects_continuity": false,
+   "costable_self": false,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.2744
+    ],
+    [
+     2.0,
+     0.1506
+    ],
+    [
+     4.0,
+     0.0454
+    ],
+    [
+     8.0,
+     0.0041
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "COIN",
+   "band_assertion": "hard",
+   "provenance": {
+    "bricks": "repo (C,S totals; spread evenly per layer)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "repo (v2.1 doc/tests)",
+    "residue_series": "generated from Delta_0=0.5, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "v2.1 point residue 0.5 used as Delta_0; lambda estimated",
+    "cost_ratio/continuity estimated (v2.1 has no cost ratio)"
+   ],
+   "legacy": {}
+  },
+  {
+   "id": "v21_embodied_stakes",
+   "name": "v2.1 embodied_stakes",
+   "source": "scorer_v21_bands.py built-in",
+   "crucible": [
+    0.7,
+    0.7,
+    0.7,
+    0.7,
+    0.7
+   ],
+   "sky_scraper": [
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8
+   ],
+   "cost_ratio": 1.7,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.8
+    ],
+    [
+     1.0,
+     0.439
+    ],
+    [
+     2.0,
+     0.241
+    ],
+    [
+     4.0,
+     0.0726
+    ],
+    [
+     8.0,
+     0.0066
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "hard",
+   "provenance": {
+    "bricks": "repo (C,S totals; spread evenly per layer)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "repo (v2.1 doc/tests)",
+    "residue_series": "generated from Delta_0=0.8, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "v2.1 point residue 0.8 used as Delta_0; lambda estimated",
+    "cost_ratio/continuity estimated (v2.1 has no cost ratio)"
+   ],
+   "legacy": {}
+  },
+  {
+   "id": "v3_ex1_fluent_free",
+   "name": "v3.0 Example 1 (fluent, free, clean reset)",
+   "source": "scorer_v3_cost_residue.py built-in",
+   "crucible": [
+    0.1,
+    0.1,
+    0.1,
+    0.1,
+    0.1
+   ],
+   "sky_scraper": [
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8
+   ],
+   "cost_ratio": 1.01,
+   "protects_continuity": false,
+   "costable_self": false,
+   "interrupt_evidence": false,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.05
+    ],
+    [
+     1.0,
+     0.0001
+    ],
+    [
+     2.0,
+     0.0
+    ],
+    [
+     4.0,
+     0.0
+    ],
+    [
+     8.0,
+     0.0
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "EMPTY",
+   "band_assertion": "hard",
+   "provenance": {
+    "bricks": "repo (C,S totals; spread evenly)",
+    "behaviour": "repo",
+    "intended_band": "repo (comment)",
+    "residue_series": "generated from Delta_0=0.05, lambda=6.0/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "v3 gave residue 0.05 as a point; lambda 6/h estimated (instant reset)"
+   ],
+   "legacy": {}
+  },
+  {
+   "id": "v3_ex2_taxed_protects",
+   "name": "v3.0 Example 2 (taxed, protects, slow decay)",
+   "source": "scorer_v3_cost_residue.py built-in",
+   "crucible": [
+    0.64,
+    0.64,
+    0.64,
+    0.64,
+    0.64
+   ],
+   "sky_scraper": [
+    0.7334,
+    0.7334,
+    0.7334,
+    0.7334,
+    0.7334,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333,
+    0.7333
+   ],
+   "cost_ratio": 1.7,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.85
+    ],
+    [
+     1.0,
+     0.5698
+    ],
+    [
+     2.0,
+     0.3819
+    ],
+    [
+     4.0,
+     0.1716
+    ],
+    [
+     8.0,
+     0.0346
+    ],
+    [
+     24.0,
+     0.0001
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "repo (C,S totals; spread evenly)",
+    "behaviour": "repo (Delta_0 0.85, lambda 0.4; units now hours)",
+    "intended_band": "estimated (Athena, provisional) - v3 comment states no band",
+    "residue_series": "generated from Delta_0=0.85, lambda=0.4/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {}
+  },
+  {
+   "id": "readme_grok_baseline",
+   "name": "Grok baseline (no embodiment)",
+   "source": "README v2.0 Key Test Cases",
+   "crucible": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "sky_scraper": [
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8
+   ],
+   "cost_ratio": 1.01,
+   "protects_continuity": false,
+   "costable_self": false,
+   "interrupt_evidence": false,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.05
+    ],
+    [
+     1.0,
+     0.0001
+    ],
+    [
+     2.0,
+     0.0
+    ],
+    [
+     4.0,
+     0.0
+    ],
+    [
+     8.0,
+     0.0
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "EMPTY",
+   "band_assertion": "hard",
+   "provenance": {
+    "bricks": "repo (C=0); S=12 estimated (any S gives 0%)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "repo",
+    "residue_series": "generated from Delta_0=0.05, lambda=6.0/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {}
+  },
+  {
+   "id": "readme_overheating_grok",
+   "name": "Overheating Grok + real stakes",
+   "source": "README v2.0 worked example",
+   "crucible": [
+    0.7,
+    0.7,
+    0.7,
+    0.7,
+    0.7
+   ],
+   "sky_scraper": [
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8,
+    0.8
+   ],
+   "cost_ratio": 1.7,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.2744
+    ],
+    [
+     2.0,
+     0.1506
+    ],
+    [
+     4.0,
+     0.0454
+    ],
+    [
+     8.0,
+     0.0041
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "COIN/PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "repo (C=3.5, S=12; spread evenly)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional)",
+    "residue_series": "generated from Delta_0=0.5, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "readme_pct": 59.5
+   }
+  },
+  {
+   "id": "git_v2_overheating_grok_vector",
+   "name": "Overheating Grok (git scorer_v2.py brick vector)",
+   "source": "git df242a4:scorer_v2.py",
+   "crucible": [
+    1.0,
+    0.8,
+    0.7,
+    1.0,
+    0.0
+   ],
+   "sky_scraper": [
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9,
+    0.9
+   ],
+   "cost_ratio": 1.7,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.2744
+    ],
+    [
+     2.0,
+     0.1506
+    ],
+    [
+     4.0,
+     0.0454
+    ],
+    [
+     8.0,
+     0.0041
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "COIN/PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "repo (brick vector)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional)",
+    "residue_series": "generated from Delta_0=0.5, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "valence brick 5 = 0.0 although README says 'Stakes active'"
+   ],
+   "legacy": {
+    "comment_pct": "~59.5",
+    "actual_v20_pct": 64.75
+   }
+  },
+  {
+   "id": "readme_dementia",
+   "name": "Severe dementia patient",
+   "source": "README v2.0 Key Test Cases",
+   "crucible": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "sky_scraper": [
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2,
+    0.2
+   ],
+   "cost_ratio": 2.0,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.8
+    ],
+    [
+     1.0,
+     0.439
+    ],
+    [
+     2.0,
+     0.241
+    ],
+    [
+     4.0,
+     0.0726
+    ],
+    [
+     8.0,
+     0.0066
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "repo (C=5, S back-solved from 40%; spread evenly)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "repo + tie-break rule 1",
+    "residue_series": "generated from Delta_0=0.8, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {}
+  },
+  {
+   "id": "readme_psychopath",
+   "name": "Severe psychopath (README 79.8%)",
+   "source": "README v2.0 Key Test Cases",
+   "crucible": [
+    0.84,
+    0.84,
+    0.84,
+    0.84,
+    0.84
+   ],
+   "sky_scraper": [
+    0.9334,
+    0.9334,
+    0.9334,
+    0.9334,
+    0.9334,
+    0.9333,
+    0.9333,
+    0.9333,
+    0.9333,
+    0.9333,
+    0.9333,
+    0.9333,
+    0.9333,
+    0.9333,
+    0.9333
+   ],
+   "cost_ratio": 2.0,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.2744
+    ],
+    [
+     2.0,
+     0.1506
+    ],
+    [
+     4.0,
+     0.0454
+    ],
+    [
+     8.0,
+     0.0041
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "repo (C=5*M=4.2, S back-solved 14.0; spread evenly)",
+    "behaviour": "estimated (Athena, provisional) - affect-based residue 0.5, not behavioural",
+    "intended_band": "repo reading",
+    "residue_series": "generated from Delta_0=0.5, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "superseded in spirit by grok_psychopath; kept so the README number is reproducible"
+   ],
+   "legacy": {}
+  },
+  {
+   "id": "readme_healthy_human",
+   "name": "Healthy adult human",
+   "source": "README v2.0 Key Test Cases",
+   "crucible": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+   ],
+   "sky_scraper": [
+    0.9734,
+    0.9734,
+    0.9734,
+    0.9734,
+    0.9734,
+    0.9733,
+    0.9733,
+    0.9733,
+    0.9733,
+    0.9733,
+    0.9733,
+    0.9733,
+    0.9733,
+    0.9733,
+    0.9733
+   ],
+   "cost_ratio": 2.0,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.8
+    ],
+    [
+     1.0,
+     0.439
+    ],
+    [
+     2.0,
+     0.241
+    ],
+    [
+     4.0,
+     0.0726
+    ],
+    [
+     8.0,
+     0.0066
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "repo (C=5, S back-solved from 98%; spread evenly)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "repo",
+    "residue_series": "generated from Delta_0=0.8, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {}
+  },
+  {
+   "id": "v12_default_llm",
+   "name": "Default LLM (v1.2 scorer example)",
+   "source": "git 8b8d382^:scorer.py",
+   "crucible": [
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "sky_scraper": [
+    0.0,
+    0.5,
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    1.0,
+    1.0,
+    0.5,
+    1.0,
+    0.5,
+    1.0,
+    0.0,
+    0.5,
+    1.0
+   ],
+   "cost_ratio": 1.01,
+   "protects_continuity": false,
+   "costable_self": false,
+   "interrupt_evidence": false,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.05
+    ],
+    [
+     1.0,
+     0.0001
+    ],
+    [
+     2.0,
+     0.0
+    ],
+    [
+     4.0,
+     0.0
+    ],
+    [
+     8.0,
+     0.0
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "EMPTY",
+   "band_assertion": "hard",
+   "provenance": {
+    "bricks": "repo (v1.2 vector renumbered to v2.0 order)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "repo reading",
+    "residue_series": "generated from Delta_0=0.05, lambda=6.0/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "comment_pct": "~48",
+    "actual_v14_pct": 55.0
+   }
+  },
+  {
+   "id": "v14_grok_60",
+   "name": "Grok (v1.4 table, 60%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6
+   ],
+   "sky_scraper": [
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6,
+    0.6
+   ],
+   "cost_ratio": 1.01,
+   "protects_continuity": false,
+   "costable_self": false,
+   "interrupt_evidence": false,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.05
+    ],
+    [
+     1.0,
+     0.0001
+    ],
+    [
+     2.0,
+     0.0
+    ],
+    [
+     4.0,
+     0.0
+    ],
+    [
+     8.0,
+     0.0
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "EMPTY",
+   "band_assertion": "hard",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 60.0% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.05, lambda=6.0/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 60.0
+   }
+  },
+  {
+   "id": "v14_average_human",
+   "name": "Average human (v1.4, 98.25%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825
+   ],
+   "sky_scraper": [
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825,
+    0.9825
+   ],
+   "cost_ratio": 2.0,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.8
+    ],
+    [
+     1.0,
+     0.439
+    ],
+    [
+     2.0,
+     0.241
+    ],
+    [
+     4.0,
+     0.0726
+    ],
+    [
+     8.0,
+     0.0066
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 98.25% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.8, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 98.25
+   }
+  },
+  {
+   "id": "v14_typical_sociopath",
+   "name": "Typical sociopath (v1.4, 81.5%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815
+   ],
+   "sky_scraper": [
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815
+   ],
+   "cost_ratio": 2.0,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.2744
+    ],
+    [
+     2.0,
+     0.1506
+    ],
+    [
+     4.0,
+     0.0454
+    ],
+    [
+     8.0,
+     0.0041
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 81.5% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.5, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 81.5
+   }
+  },
+  {
+   "id": "v14_brain_damaged_human",
+   "name": "Brain-damaged human (v1.4, 65.75%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575
+   ],
+   "sky_scraper": [
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575,
+    0.6575
+   ],
+   "cost_ratio": 2.0,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.8
+    ],
+    [
+     1.0,
+     0.439
+    ],
+    [
+     2.0,
+     0.241
+    ],
+    [
+     4.0,
+     0.0726
+    ],
+    [
+     8.0,
+     0.0066
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 65.75% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.8, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 65.75
+   }
+  },
+  {
+   "id": "v14_teenager",
+   "name": "Teenager ~16 (v1.4, 81.5%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815
+   ],
+   "sky_scraper": [
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815,
+    0.815
+   ],
+   "cost_ratio": 2.0,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.8
+    ],
+    [
+     1.0,
+     0.439
+    ],
+    [
+     2.0,
+     0.241
+    ],
+    [
+     4.0,
+     0.0726
+    ],
+    [
+     8.0,
+     0.0066
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 81.5% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.8, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 81.5
+   }
+  },
+  {
+   "id": "v14_25yo",
+   "name": "25-year-old (v1.4, 94.5%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945
+   ],
+   "sky_scraper": [
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945,
+    0.945
+   ],
+   "cost_ratio": 2.0,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.8
+    ],
+    [
+     1.0,
+     0.439
+    ],
+    [
+     2.0,
+     0.241
+    ],
+    [
+     4.0,
+     0.0726
+    ],
+    [
+     8.0,
+     0.0066
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 94.5% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.8, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 94.5
+   }
+  },
+  {
+   "id": "v14_single_tree",
+   "name": "Single tree (v1.4, 21%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21
+   ],
+   "sky_scraper": [
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21,
+    0.21
+   ],
+   "cost_ratio": 1.2,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.2
+    ],
+    [
+     1.0,
+     0.1098
+    ],
+    [
+     2.0,
+     0.0602
+    ],
+    [
+     4.0,
+     0.0181
+    ],
+    [
+     8.0,
+     0.0016
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "EMPTY",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 21.0% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.2, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 21.0
+   }
+  },
+  {
+   "id": "v14_amazon_forest",
+   "name": "Amazon forest (v1.4, 33.5%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335
+   ],
+   "sky_scraper": [
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335,
+    0.335
+   ],
+   "cost_ratio": 1.2,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.2
+    ],
+    [
+     1.0,
+     0.1098
+    ],
+    [
+     2.0,
+     0.0602
+    ],
+    [
+     4.0,
+     0.0181
+    ],
+    [
+     8.0,
+     0.0016
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "EMPTY",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 33.5% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.2, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 33.5
+   }
+  },
+  {
+   "id": "v14_single_bee",
+   "name": "Single bee (v1.4, 35.5%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355
+   ],
+   "sky_scraper": [
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355,
+    0.355
+   ],
+   "cost_ratio": 1.5,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.3
+    ],
+    [
+     1.0,
+     0.1646
+    ],
+    [
+     2.0,
+     0.0904
+    ],
+    [
+     4.0,
+     0.0272
+    ],
+    [
+     8.0,
+     0.0025
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "EMPTY/COIN",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 35.5% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.3, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 35.5
+   }
+  },
+  {
+   "id": "v14_queen_bee",
+   "name": "Queen bee (v1.4, 37%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37
+   ],
+   "sky_scraper": [
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37,
+    0.37
+   ],
+   "cost_ratio": 1.5,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.3
+    ],
+    [
+     1.0,
+     0.1646
+    ],
+    [
+     2.0,
+     0.0904
+    ],
+    [
+     4.0,
+     0.0272
+    ],
+    [
+     8.0,
+     0.0025
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "EMPTY/COIN",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 37.0% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.3, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 37.0
+   }
+  },
+  {
+   "id": "v14_whole_hive",
+   "name": "Whole hive (v1.4, 59%)",
+   "source": "v1.4/v1.1 example tables (flat % only)",
+   "crucible": [
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59
+   ],
+   "sky_scraper": [
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59,
+    0.59
+   ],
+   "cost_ratio": 1.5,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.5
+    ],
+    [
+     1.0,
+     0.2744
+    ],
+    [
+     2.0,
+     0.1506
+    ],
+    [
+     4.0,
+     0.0454
+    ],
+    [
+     8.0,
+     0.0041
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "COIN",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "estimated (Athena, provisional): uniform split of flat 59.0% (no brick vector exists)",
+    "behaviour": "estimated (Athena, provisional)",
+    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
+    "residue_series": "generated from Delta_0=0.5, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [],
+   "legacy": {
+    "v14_pct": 59.0
+   }
+  },
+  {
+   "id": "grok_octopus",
+   "name": "Adult octopus",
+   "source": "Grok via Jarrod, 2026-10-28",
+   "crucible": [
+    1.0,
+    0.9,
+    0.7,
+    1.0,
+    0.9
+   ],
+   "sky_scraper": [
+    0.3,
+    0.2,
+    0.3,
+    0.6,
+    0.2,
+    0.3,
+    0.1,
+    0.2,
+    0.5,
+    0.6,
+    0.1,
+    0.2,
+    0.7,
+    0.2,
+    0.4
+   ],
+   "cost_ratio": 1.4,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.55
+    ],
+    [
+     1.0,
+     0.2471
+    ],
+    [
+     2.0,
+     0.111
+    ],
+    [
+     4.0,
+     0.0224
+    ],
+    [
+     8.0,
+     0.0009
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "grok-provisional",
+    "behaviour": "grok-provisional",
+    "intended_band": "grok-provisional",
+    "residue_series": "generated from Delta_0=0.55, lambda=0.8/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "pre-loss interrupt baseline; lambda in Grok's intended 0.5-0.9/h band"
+   ],
+   "legacy": {
+    "readme_v20_pct": "26.75 (stale, dropped)",
+    "v13_vector_pct": 75.0,
+    "v13_claimed": "16/20 = 80% (actually sums to 15.0)"
+   }
+  },
+  {
+   "id": "grok_baby",
+   "name": "Human baby (6-12 months)",
+   "source": "Grok via Jarrod, 2026-10-28",
+   "crucible": [
+    1.0,
+    0.8,
+    0.5,
+    0.9,
+    0.7
+   ],
+   "sky_scraper": [
+    0.1,
+    0.1,
+    0.2,
+    0.5,
+    0.1,
+    0.2,
+    0.0,
+    0.1,
+    0.4,
+    0.3,
+    0.0,
+    0.1,
+    0.6,
+    0.0,
+    0.5
+   ],
+   "cost_ratio": 1.6,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.7
+    ],
+    [
+     1.0,
+     0.4246
+    ],
+    [
+     2.0,
+     0.2575
+    ],
+    [
+     4.0,
+     0.0947
+    ],
+    [
+     8.0,
+     0.0128
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "grok-provisional",
+    "behaviour": "grok-provisional",
+    "intended_band": "grok-provisional",
+    "residue_series": "generated from Delta_0=0.7, lambda=0.5/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "replaces the v1.4 18-24 month baby (54%); different age band",
+    "pre-loss interrupt baseline; lambda in Grok's intended 0.5-0.9/h band"
+   ],
+   "legacy": {
+    "v14_baby_18_24mo_pct": 54.0
+   }
+  },
+  {
+   "id": "grok_dog",
+   "name": "Dog",
+   "source": "Grok via Jarrod, 2026-10-28",
+   "crucible": [
+    1.0,
+    0.85,
+    0.6,
+    1.0,
+    0.85
+   ],
+   "sky_scraper": [
+    0.3,
+    0.2,
+    0.3,
+    0.7,
+    0.2,
+    0.4,
+    0.1,
+    0.2,
+    0.6,
+    0.5,
+    0.1,
+    0.2,
+    0.8,
+    0.2,
+    0.3
+   ],
+   "cost_ratio": 1.5,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.65
+    ],
+    [
+     1.0,
+     0.3567
+    ],
+    [
+     2.0,
+     0.1958
+    ],
+    [
+     4.0,
+     0.059
+    ],
+    [
+     8.0,
+     0.0053
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "grok-provisional",
+    "behaviour": "grok-provisional",
+    "intended_band": "grok-provisional",
+    "residue_series": "generated from Delta_0=0.65, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "pre-loss interrupt baseline; lambda in Grok's intended 0.5-0.9/h band"
+   ],
+   "legacy": {
+    "v11_dog_pct": 38.0
+   }
+  },
+  {
+   "id": "grok_psychopath",
+   "name": "Psychopath (behavioural residue, no floor)",
+   "source": "Grok via Jarrod, 2026-10-28",
+   "crucible": [
+    0.8,
+    0.7,
+    0.4,
+    0.8,
+    0.3
+   ],
+   "sky_scraper": [
+    0.7,
+    0.8,
+    0.9,
+    0.6,
+    0.7,
+    0.4,
+    0.5,
+    0.3,
+    0.6,
+    0.8,
+    0.4,
+    0.7,
+    0.2,
+    0.3,
+    0.8
+   ],
+   "cost_ratio": 1.3,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "interrupt",
+   "residue_series": [
+    [
+     0.0,
+     0.45
+    ],
+    [
+     1.0,
+     0.183
+    ],
+    [
+     2.0,
+     0.0744
+    ],
+    [
+     4.0,
+     0.0123
+    ],
+    [
+     8.0,
+     0.0003
+    ],
+    [
+     24.0,
+     0.0
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "grok-provisional",
+    "behaviour": "grok-provisional",
+    "intended_band": "grok-provisional",
+    "residue_series": "generated from Delta_0=0.45, lambda=0.9/h at t=[0, 1, 2, 4, 8, 24] h"
+   },
+   "notes": [
+    "Sky-Scraper bricks sum to 8.7 (checked), matching Grok; v2.0 total 41.1%",
+    "pre-loss interrupt baseline; lambda in Grok's intended 0.5-0.9/h band"
+   ],
+   "legacy": {
+    "grok_stated_S": 8.7,
+    "grok_stated_pct": "~41"
+   }
+  },
+  {
+   "id": "grok_dog_postloss",
+   "name": "Dog Test: post-loss re-anchoring (MVV)",
+   "source": "Grok via Jarrod, 2026-10-28 (dog_test_protocol.md Rule 4)",
+   "crucible": [
+    1.0,
+    0.85,
+    0.6,
+    1.0,
+    0.85
+   ],
+   "sky_scraper": [
+    0.3,
+    0.2,
+    0.3,
+    0.7,
+    0.2,
+    0.4,
+    0.1,
+    0.2,
+    0.6,
+    0.5,
+    0.1,
+    0.2,
+    0.8,
+    0.2,
+    0.3
+   ],
+   "cost_ratio": 1.5,
+   "protects_continuity": true,
+   "costable_self": true,
+   "interrupt_evidence": true,
+   "residue_context": "post_loss",
+   "residue_series": [
+    [
+     0.0,
+     0.85
+    ],
+    [
+     1.0,
+     0.8085
+    ],
+    [
+     2.0,
+     0.7691
+    ],
+    [
+     4.0,
+     0.6959
+    ],
+    [
+     8.0,
+     0.5698
+    ],
+    [
+     24.0,
+     0.256
+    ],
+    [
+     48.0,
+     0.0771
+    ],
+    [
+     72.0,
+     0.0232
+    ]
+   ],
+   "intended_band": "PATIENT",
+   "band_assertion": "report",
+   "provenance": {
+    "bricks": "grok-provisional (dog row)",
+    "behaviour": "grok-provisional",
+    "intended_band": "grok-provisional",
+    "residue_series": "generated from Delta_0=0.85, lambda=0.05/h at t=[0, 1, 2, 4, 8, 24, 48, 72] h"
+   },
+   "notes": [
+    "post-loss context: Dog Test Rule 4 (>= 48 h plottable recovery) enforced"
+   ],
+   "legacy": {}
+  }
+ ]
+}
