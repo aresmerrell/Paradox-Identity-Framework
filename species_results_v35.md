@@ -18,12 +18,12 @@ Brick order: v2.0 README (Crucible 1-5, Sky-Scraper 6-20). Residue fitted from (
 | Overheating Grok + real stakes | 3.5 | 12 | 59.50 | 1.7 | 0.988 | 0.013 | 3.456 | 58.50 | 0.5 | 0.6 | 1.1553 | VALID | **COIN** | COIN/PATIENT | ✅ | mixed (repo + Athena est.) |
 | Overheating Grok (git scorer_v2.py brick vector) | 3.5 | 13.5 | 64.75 | 1.7 | 0.988 | 0.013 | 3.456 | 63.65 | 0.5 | 0.6 | 1.1553 | VALID | **COIN** | COIN/PATIENT | ✅ | mixed (repo + Athena est.) |
 | Severe dementia patient | 5 | 3 | 40.00 | 2 | 1.000 | 0.000 | 5.000 | 40.00 | 0.8 | 0.6 | 1.1553 | VALID | **PATIENT** | PATIENT | ✅ | mixed (repo + Athena est.) |
-| Severe psychopath (README 79.8%) | 4.2 | 14 | 79.80 | 2 | 1.000 | 0.000 | 4.200 | 79.80 | 0.5 | 0.6 | 1.1553 | VALID | **COIN** | PATIENT | ❌ | mixed (repo + Athena est.) |
+| Severe psychopath (README 79.8%) | 4.2 | 14 | 79.80 | 2 | 1.000 | 0.000 | 4.200 | 79.80 | — | — | — | UNKNOWN | **COIN** | legacy/unmeasured | n/a (legacy) | mixed (repo + Athena est.) |
 | Healthy adult human | 5 | 14.6 | 98.00 | 2 | 1.000 | 0.000 | 5.000 | 98.00 | 0.8 | 0.6 | 1.1553 | VALID | **PATIENT** | PATIENT | ✅ | mixed (repo + Athena est.) |
 | Default LLM (v1.2 scorer example) | 1 | 10 | 15.00 | 1.01 | 0.000 | 1.000 | 0.000 | 0.00 | 0.05 | 6.2146 | 0.1115 | INSTANT | **EMPTY** | EMPTY | ✅ | mixed (repo + Athena est.) |
 | Grok (v1.4 table, 60%) | 3 | 9 | 42.00 | 1.01 | 0.000 | 1.000 | 0.000 | 0.00 | 0.05 | 6.2146 | 0.1115 | INSTANT | **EMPTY** | EMPTY | ✅ | Athena est. |
 | Average human (v1.4, 98.25%) | 4.9125 | 14.7375 | 96.96 | 2 | 1.000 | 0.000 | 4.912 | 96.96 | 0.8 | 0.6 | 1.1553 | VALID | **PATIENT** | PATIENT | ✅ | Athena est. |
-| Typical sociopath (v1.4, 81.5%) | 4.075 | 12.225 | 70.19 | 2 | 1.000 | 0.000 | 4.075 | 70.19 | 0.5 | 0.6 | 1.1553 | VALID | **COIN** | PATIENT | ❌ | Athena est. |
+| Typical sociopath (v1.4, 81.5%) | 4.075 | 12.225 | 70.19 | 2 | 1.000 | 0.000 | 4.075 | 70.19 | — | — | — | UNKNOWN | **COIN** | legacy/unmeasured | n/a (legacy) | Athena est. |
 | Brain-damaged human (v1.4, 65.75%) | 3.2875 | 9.8625 | 48.86 | 2 | 1.000 | 0.000 | 3.288 | 48.86 | 0.8 | 0.6 | 1.1553 | VALID | **PATIENT** | PATIENT | ✅ | Athena est. |
 | Teenager ~16 (v1.4, 81.5%) | 4.075 | 12.225 | 70.19 | 2 | 1.000 | 0.000 | 4.075 | 70.19 | 0.8 | 0.6 | 1.1553 | VALID | **PATIENT** | PATIENT | ✅ | Athena est. |
 | 25-year-old (v1.4, 94.5%) | 4.725 | 14.175 | 90.60 | 2 | 1.000 | 0.000 | 4.725 | 90.60 | 0.8 | 0.6 | 1.1553 | VALID | **PATIENT** | PATIENT | ✅ | Athena est. |
@@ -34,16 +34,14 @@ Brick order: v2.0 README (Crucible 1-5, Sky-Scraper 6-20). Residue fitted from (
 | Whole hive (v1.4, 59%) | 2.95 | 8.85 | 40.86 | 1.5 | 0.932 | 0.068 | 2.751 | 37.28 | 0.5 | 0.6 | 1.1553 | VALID | **COIN** | COIN | ✅ | Athena est. |
 | Adult octopus | 4.5 | 4.9 | 44.55 | 1.4 | 0.920 | 0.080 | 4.140 | 40.17 | 0.55 | 0.8002 | 0.8663 | VALID | **COIN** | PATIENT | ❌ | grok-provisional |
 | Human baby (6-12 months) | 3.9 | 3.2 | 31.98 | 1.6 | 0.960 | 0.040 | 3.744 | 30.46 | 0.7 | 0.5 | 1.3862 | VALID | **PATIENT** | PATIENT | ✅ | grok-provisional |
-| Dog | 4.3 | 5.1 | 43.43 | 1.5 | 0.932 | 0.068 | 4.010 | 39.81 | 0.65 | 0.6 | 1.1553 | VALID | **PATIENT** | PATIENT | ✅ | grok-provisional |
+| Dog (threshold-adjacent: Δ₀ = 0.65 bar) | 4.3 | 5.1 | 43.43 | 1.5 | 0.932 | 0.068 | 4.010 | 39.81 | 0.65 | 0.6 | 1.1553 | VALID | **PATIENT** | PATIENT | ✅ | grok-provisional |
 | Psychopath (behavioural residue, no floor) | 3 | 8.7 | 41.10 | 1.3 | 0.738 | 0.262 | 2.213 | 27.79 | 0.45 | 0.8998 | 0.7703 | VALID | **COIN** | PATIENT | ❌ | grok-provisional |
 | Dog Test: post-loss re-anchoring (MVV) | 4.3 | 5.1 | 43.43 | 1.5 | 0.932 | 0.068 | 4.010 | 39.81 | 0.85 | 0.05 | 13.8629 | VALID (Rule 4 pass) | **PATIENT** | PATIENT | ✅ | grok-provisional |
 
-Rows: 31. Off intended band: 4.
+Rows: 31 (2 legacy/unmeasured, excluded from misses). Off intended band: 2.
 
 ## Off intended band
 
-- **Severe psychopath (README 79.8%)**: COIN vs intended PATIENT. costable self, C_adj load-bearing enough for COIN; PATIENT blocked by: Delta_0 0.5 < 0.65
-- **Typical sociopath (v1.4, 81.5%)**: COIN vs intended PATIENT. costable self, C_adj load-bearing enough for COIN; PATIENT blocked by: Delta_0 0.5 < 0.65
 - **Adult octopus**: COIN vs intended PATIENT. costable self, C_adj load-bearing enough for COIN; PATIENT blocked by: Delta_0 0.55 < 0.65
 - **Psychopath (behavioural residue, no floor)**: COIN vs intended PATIENT. costable self, C_adj load-bearing enough for COIN; PATIENT blocked by: C_adj 2.2128 < 2.5; Delta_0 0.45 < 0.65
 

@@ -864,42 +864,17 @@
    "costable_self": true,
    "interrupt_evidence": true,
    "residue_context": "interrupt",
-   "residue_series": [
-    [
-     0.0,
-     0.5
-    ],
-    [
-     1.0,
-     0.2744
-    ],
-    [
-     2.0,
-     0.1506
-    ],
-    [
-     4.0,
-     0.0454
-    ],
-    [
-     8.0,
-     0.0041
-    ],
-    [
-     24.0,
-     0.0
-    ]
-   ],
-   "intended_band": "PATIENT",
-   "band_assertion": "report",
+   "residue_series": null,
+   "intended_band": "legacy/unmeasured",
+   "band_assertion": "legacy",
    "provenance": {
     "bricks": "repo (C=5*M=4.2, S back-solved 14.0; spread evenly)",
-    "behaviour": "estimated (Athena, provisional) - affect-based residue 0.5, not behavioural",
-    "intended_band": "repo reading",
-    "residue_series": "generated from Delta_0=0.5, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+    "behaviour": "estimated (Athena, provisional): cost/continuity only",
+    "intended_band": "legacy comparison case (unmeasured residue); excluded from band misses",
+    "residue_series": "UNMEASURED: no deprivation-probe series exists; assumed 0.5 removed (no placeholder)"
    },
    "notes": [
-    "superseded in spirit by grok_psychopath; kept so the README number is reproducible"
+    "legacy comparison case: residue UNMEASURED until an actual deprivation-probe series is supplied (Grok, Oct 28)"
    ],
    "legacy": {}
   },
@@ -1223,41 +1198,18 @@
    "costable_self": true,
    "interrupt_evidence": true,
    "residue_context": "interrupt",
-   "residue_series": [
-    [
-     0.0,
-     0.5
-    ],
-    [
-     1.0,
-     0.2744
-    ],
-    [
-     2.0,
-     0.1506
-    ],
-    [
-     4.0,
-     0.0454
-    ],
-    [
-     8.0,
-     0.0041
-    ],
-    [
-     24.0,
-     0.0
-    ]
-   ],
-   "intended_band": "PATIENT",
-   "band_assertion": "report",
+   "residue_series": null,
+   "intended_band": "legacy/unmeasured",
+   "band_assertion": "legacy",
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 81.5% (no brick vector exists)",
-    "behaviour": "estimated (Athena, provisional)",
-    "intended_band": "estimated (Athena, provisional) (v1.4 tier read through current framework)",
-    "residue_series": "generated from Delta_0=0.5, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
+    "behaviour": "estimated (Athena, provisional): cost/continuity only",
+    "intended_band": "legacy comparison case (unmeasured residue); excluded from band misses",
+    "residue_series": "UNMEASURED: no deprivation-probe series exists; assumed 0.5 removed (no placeholder)"
    },
-   "notes": [],
+   "notes": [
+    "legacy comparison case: residue UNMEASURED until an actual deprivation-probe series is supplied (Grok, Oct 28)"
+   ],
    "legacy": {
     "v14_pct": 81.5
    }
@@ -2057,7 +2009,8 @@
     "residue_series": "generated from Delta_0=0.65, lambda=0.6/h at t=[0, 1, 2, 4, 8, 24] h"
    },
    "notes": [
-    "pre-loss interrupt baseline; lambda in Grok's intended 0.5-0.9/h band"
+    "pre-loss interrupt baseline; lambda in Grok's intended 0.5-0.9/h band",
+    "threshold-adjacent (delta_0 = 0.65 bar)"
    ],
    "legacy": {
     "v11_dog_pct": 38.0

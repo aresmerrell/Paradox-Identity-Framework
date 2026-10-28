@@ -40,16 +40,18 @@ def render(table):
     for row in table["rows"]:
         r = pif35.score_row(row)
         res = r.residue
-        ok = r.band in row["intended_band"].split("/")
+        legacy = row.get("band_assertion") == "legacy"
+        ok = legacy or r.band in row["intended_band"].split("/")
         f = lambda x: "—" if x is None else f"{x:g}"
         status = res["status"] + (" (Rule 4 pass)" if res["rule4_pass"] else " (Rule 4 FAIL)" if res["rule4_applies"] else "")
         lines.append(
-            f"| {row['name']} | {r.c:g} | {r.s:g} | {r.pct_v20:.2f} | {row['cost_ratio']:g} | {r.throttle_signal:.3f} | {r.psi:.3f} | "
+            f"| {row['name']}{' (threshold-adjacent: Δ₀ = 0.65 bar)' if any('threshold-adjacent' in n for n in row.get('notes', [])) else ''} | {r.c:g} | {r.s:g} | {r.pct_v20:.2f} | {row['cost_ratio']:g} | {r.throttle_signal:.3f} | {r.psi:.3f} | "
             f"{r.c_adj:.3f} | {r.pct_35:.2f} | {f(res['delta_0'])} | {f(res['lambda_per_hour'])} | {f(res['half_life_hours'])} | "
-            f"{status} | **{r.band}** | {row['intended_band']} | {'✅' if ok else '❌'} | {short_prov(row['provenance'])} |")
+            f"{status} | **{r.band}** | {row['intended_band']} | {'n/a (legacy)' if legacy else '✅' if ok else '❌'} | {short_prov(row['provenance'])} |")
         if not ok:
             misses.append(f"- **{row['name']}**: {r.band} vs intended {row['intended_band']}. {'; '.join(r.band_reasons)}")
-    lines += ["", f"Rows: {len(table['rows'])}. Off intended band: {len(misses)}.", ""]
+    n_legacy = sum(1 for r in table["rows"] if r.get("band_assertion") == "legacy")
+    lines += ["", f"Rows: {len(table['rows'])} ({n_legacy} legacy/unmeasured, excluded from misses). Off intended band: {len(misses)}.", ""]
     if misses:
         lines += ["## Off intended band", ""] + misses + [""]
     return "\n".join(lines)

@@ -68,11 +68,18 @@ v2.0 README order: **Crucible = bricks 1–5** (1 embodiment, 2 minimal self, 3 
 - The git `scorer_v2.py` overheating vector computes to 64.75%, not 59.5%. The README's C 3.5 / S 12 does give 59.5%.
 - The v1.2 default LLM comment says "~48%", but it computes to 55.0% under v1.4.
 
-## Scope of the Δ₀ ≥ 0.65 PATIENT bar (open ambiguity)
-- Per Grok (Oct 28), the 0.65 bar is meant for **elevated or post-loss claims that assert load-bearing valence**, such as Dog Test re-anchoring.
-- Grok also says ordinary pre-loss species baselines "may sit lower and still be coherent", yet wants the octopus (baseline Δ₀ 0.55) kept at COIN.
-- This draft therefore applies 0.65 to **every** PATIENT claim, baselines included, and does not change the logic. A lower bar for baselines would flip the octopus to PATIENT, which contradicts Grok's own call.
-- Unresolved: is there a separate baseline bar, and what would ordinary-baseline PATIENT require? Until that is decided, a baseline row can reach PATIENT only by clearing the same 0.65 bar.
+## Scope of the Δ₀ ≥ 0.65 PATIENT bar
+- **Decision (Oct 28, Grok via Jarrod): one 0.65 bar everywhere for now.** It applies to every PATIENT claim, both pre-loss baselines and post-loss Dog Test rows.
+- Per Grok, the bar is aimed at elevated or post-loss claims that assert load-bearing valence, and ordinary species baselines "may sit lower and still be coherent."
+- A separate, lower baseline bar is **deferred until data forces it**, for example if the table starts producing false COINs on ordinary high-C animals.
+- The octopus (baseline Δ₀ 0.55) stays COIN under this rule.
+- The dog row sits exactly on the bar (Δ₀ = 0.65). It is accepted as borderline and marked threshold-adjacent.
+
+## Legacy / unmeasured rows
+- The README psychopath (79.8%) and v1.4 typical sociopath (81.5%) rows had only an assumed, affect-based residue of 0.5. That placeholder is removed.
+- Their residue is now **UNMEASURED**, so they band per the missing-residue rules: residue UNKNOWN, which blocks PATIENT.
+- Their intended band is `legacy/unmeasured`, and they are excluded from band misses.
+- They stay as legacy comparison cases until someone supplies a real deprivation-probe series. Grok's behavioural-residue psychopath row is the measured-style replacement.
 
 ## Known open items
 See the report in the PR description draft. The main ones:

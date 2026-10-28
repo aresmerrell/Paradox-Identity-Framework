@@ -374,6 +374,6 @@ if __name__ == "__main__":
     table = json.load(open(path))
     for row in table["rows"]:
         r = score_row(row)
-        ok = r.band in row["intended_band"].split("/")
+        ok = row.get("band_assertion") == "legacy" or r.band in row["intended_band"].split("/")
         print(f"{row['id']:32} v2.0 {r.pct_v20:6.2f}%  3.5 {r.pct_35:6.2f}%  TS {r.throttle_signal:.3f}  "
               f"C_adj {r.c_adj:.3f}  res {r.residue['status']:8} {r.band:7} (intended {row['intended_band']}) {'OK' if ok else 'MISS'}")

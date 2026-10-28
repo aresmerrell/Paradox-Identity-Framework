@@ -6,6 +6,8 @@ Run from the repo root:
 Species rows marked band_assertion == "hard" must land in their intended band.
 Rows marked "report" (estimated / grok-provisional) are scored and any miss is
 printed in a report, not asserted: provisional numbers are never tuned to pass.
+Rows marked "legacy" (intended band "legacy/unmeasured") are comparison cases with
+no measured residue; they must band per the missing-residue rules and are not misses.
 """
 
 import json
@@ -282,6 +284,17 @@ class TestSpeciesTable(unittest.TestCase):
                               f"(provisional) - {'; '.join(r.band_reasons)}")
         if misses:
             sys.stderr.write("\nPROVISIONAL ROWS OFF INTENDED BAND (reported, not asserted):\n" + "\n".join(misses) + "\n")
+
+    def test_legacy_unmeasured_rows(self):
+        legacy = [r for r in TABLE["rows"] if r["band_assertion"] == "legacy"]
+        self.assertEqual({r["id"] for r in legacy}, {"readme_psychopath", "v14_typical_sociopath"})
+        for row in legacy:
+            with self.subTest(row=row["id"]):
+                self.assertIsNone(row["residue_series"])
+                self.assertEqual(row["intended_band"], "legacy/unmeasured")
+                r = pif35.score_row(row)
+                self.assertIn("RESIDUE_UNKNOWN", r.flags)
+                self.assertNotEqual(r.band, "PATIENT")
 
     def test_grok_lambda_bounds(self):
         # Grok's pre-loss lambdas (0.5-0.9/h) must be inside the hard bounds (not frozen, not instant)
