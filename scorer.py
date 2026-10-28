@@ -51,3 +51,5 @@ if __name__ == "__main__":
             print("\nDone!")
     except ValueError:
         print("Error: Please enter only numbers (0.0 - 1.0)")
+    except (EOFError, KeyboardInterrupt):
+        print("\nNo input received. Exiting.")

@@ -199,6 +199,18 @@ You can still use the old v1.4 flat method for legacy comparisons if needed.
 
 ---
 
+## Running the Scorers and Tests
+
+The v2.0 formula is implemented as `v20_score` in [`scorer_v21_bands.py`](scorer_v21_bands.py). Each scorer prints its built-in examples when run directly (for example `python3 scorer_v21_bands.py`), and `scorer.py` is the legacy v1.4 flat scorer.
+
+Sanity tests (Python standard library only) live in [`tests/`](tests/):
+
+```
+python3 -m unittest discover -s tests -v
+```
+
+---
+
 ## Optional AI Extension (Brick 21)
 
 **Self-Modification Capacity** (AI-only, does **not** affect the main score)
