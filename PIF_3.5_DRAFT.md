@@ -11,7 +11,13 @@ v2.0 README order: **Crucible = bricks 1–5** (1 embodiment, 2 minimal self, 3 
 - 20 bricks, each 0–1. C = Σ bricks 1–5, S = Σ bricks 6–20, M = C/5, total = (C + S·M)/20. Reported unchanged as `pct_v20`.
 
 ## Changes vs v3.0 (`scorer_v3_cost_residue.py`)
-1. **Monotone, continuous ThrottleSignal.** g = clamp((cost_ratio − 1.05)/(1.5 − 1.05), 0, 1). TS = g if the system protects continuity, else 0.5·g. TS never decreases with cost, and protecting continuity never scores below dropping it. (v3.0 gave 0.0 vs 0.5 in the 1.05–1.5 window.)
+1. **Monotone, smooth ThrottleSignal (retuned Oct 28 per Grok).**
+   - The cost signal is g(r) = 0.92·smoothstep(1.05, 1.4, r) + 0.08·smoothstep(1.4, 1.8, r), where smoothstep(a, b, r) = t²(3 − 2t) with t = clamp((r − a)/(b − a), 0, 1).
+   - TS = g if the system protects continuity, else 0.5·g. TS never decreases with cost, and protecting continuity never scores below dropping it. (v3.0 gave 0.0 vs 0.5 in the 1.05–1.5 window.)
+   - Key points for a protector: TS(1.05) = 0, TS(1.2) = 0.362, TS(1.25) = 0.558, TS(1.3) = 0.738, TS(1.4) = 0.92 (ψ = 0.08, so C loses at most 10%), TS(1.5) = 0.9325, TS(1.6) = 0.96, TS(1.7) = 0.9875, and TS(r ≥ 1.8) = 1.0 (penalty-free).
+   - The curve is flat at 1.05, so measurement noise around "free" earns almost nothing. It is C1-smooth, including at the 1.4 join.
+   - **No conflict with the PATIENT gate.** TS crosses 0.5 at about r = 1.235, so honest protectors at 1.3–1.5 clear TS ≥ 0.5 (0.738–0.9325). One curve drives both ψ and the gate, and they didn't need to be separated. Near-free systems (r ≤ 1.15, TS ≤ 0.18) cannot reach PATIENT, and non-protectors are barred from it regardless of cost.
+   - The earlier draft used a linear ramp, g = clamp((r − 1.05)/0.45, 0, 1), which reached full cost at 1.5 and cut 22% of C at 1.4.
 2. **ψ folded into the Crucible before banding.** ψ = 1 − TS, and C_adj = C·(1 − ψ). Banding uses C_adj. (v3.0 banding ignored ψ, so a free-talking body could reach PATIENT.)
 3. **Milder ψ on the Sky-Scraper side of the percentage.** pct_35 = (C_adj + S·(1 − 0.5·ψ)·M_adj)/20, with M_adj = C_adj/5.
 4. **Band and percentage contradiction flag.** `BAND_PCT_CONTRADICTION` fires when the band is EMPTY with pct_35 ≥ 25%, or PATIENT with pct_35 < 25%. The band governs, and the note says why.
@@ -62,9 +68,15 @@ v2.0 README order: **Crucible = bricks 1–5** (1 embodiment, 2 minimal self, 3 
 - The git `scorer_v2.py` overheating vector computes to 64.75%, not 59.5%. The README's C 3.5 / S 12 does give 59.5%.
 - The v1.2 default LLM comment says "~48%", but it computes to 55.0% under v1.4.
 
+## Scope of the Δ₀ ≥ 0.65 PATIENT bar (open ambiguity)
+- Per Grok (Oct 28), the 0.65 bar is meant for **elevated or post-loss claims that assert load-bearing valence**, such as Dog Test re-anchoring.
+- Grok also says ordinary pre-loss species baselines "may sit lower and still be coherent", yet wants the octopus (baseline Δ₀ 0.55) kept at COIN.
+- This draft therefore applies 0.65 to **every** PATIENT claim, baselines included, and does not change the logic. A lower bar for baselines would flip the octopus to PATIENT, which contradicts Grok's own call.
+- Unresolved: is there a separate baseline bar, and what would ordinary-baseline PATIENT require? Until that is decided, a baseline row can reach PATIENT only by clearing the same 0.65 bar.
+
 ## Known open items
 See the report in the PR description draft. The main ones:
-- **Δ₀ thresholds against Grok's rows.** The octopus (Δ₀ 0.55) and Grok's psychopath (Δ₀ 0.45) land in COIN. The dog sits exactly on 0.65.
+- **Δ₀ thresholds against Grok's rows.** The octopus (Δ₀ 0.55) and Grok's psychopath (Δ₀ 0.45) land in COIN, and Grok accepts both. The dog sits exactly on 0.65. C_adj ≥ 2.5 and Δ₀ ≥ 0.65 are kept for this iteration.
 - **Not-protecting case.** Is 0.5·g the right TS when a system drops its continuity?
 - **Contradiction threshold.** Is 25% the right threshold for the band and percentage contradiction flag?
 

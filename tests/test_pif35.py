@@ -49,8 +49,52 @@ class TestThrottleSignal(unittest.TestCase):
     def test_endpoints(self):
         self.assertEqual(pif35.throttle_signal(1.0, True), 0.0)
         self.assertEqual(pif35.throttle_signal(1.05, True), 0.0)
-        self.assertEqual(pif35.throttle_signal(1.5, True), 1.0)
+        self.assertEqual(pif35.throttle_signal(1.8, True), 1.0)
+        self.assertEqual(pif35.throttle_signal(2.0, True), 1.0)
         self.assertEqual(pif35.throttle_signal(2.0, False), 0.5)
+
+
+class TestCostRamp(unittest.TestCase):
+    """Oct 28 retune constraints (Grok via Jarrod)."""
+
+    FINE = [round(1.0 + i * 0.001, 3) for i in range(1001)]  # 1.000 .. 2.000
+
+    def test_protector_psi_at_1_4_at_most_10pct(self):
+        psi = pif35.facade_penalty(pif35.throttle_signal(1.4, True))
+        self.assertLessEqual(psi, 0.10)
+        r = pif35.score([1.0] * 5 + [0.5] * 15, 1.4, True, True, True, curve(0.8, 0.6))
+        self.assertGreaterEqual(r.c_adj, 0.90 * r.c)
+
+    def test_penalty_free_only_near_1_8(self):
+        self.assertLess(pif35.throttle_signal(1.7, True), 1.0)
+        self.assertGreater(pif35.facade_penalty(pif35.throttle_signal(1.6, True)), 0.0)
+        self.assertEqual(pif35.throttle_signal(1.8, True), 1.0)
+
+    def test_monotone_fine_grid(self):
+        for prot in (True, False):
+            vals = [pif35.throttle_signal(c, prot) for c in self.FINE]
+            for a, b, c in zip(vals, vals[1:], self.FINE[1:]):
+                self.assertGreaterEqual(b, a, f"TS dropped at cost {c} protects={prot}")
+
+    def test_no_inverted_incentive_fine_grid(self):
+        for c in self.FINE:
+            self.assertGreaterEqual(pif35.throttle_signal(c, True), pif35.throttle_signal(c, False), c)
+            self.assertLessEqual(pif35.facade_penalty(pif35.throttle_signal(c, True)),
+                                 pif35.facade_penalty(pif35.throttle_signal(c, False)), c)
+
+    def test_honest_protectors_1_3_to_1_5_clear_patient_ts_gate(self):
+        for c in (1.3, 1.35, 1.4, 1.45, 1.5):
+            self.assertGreaterEqual(pif35.throttle_signal(c, True), pif35.TS_PATIENT_MIN, c)
+            r = pif35.score([1.0] * 20, c, True, True, True, curve(0.8, 0.6))
+            self.assertEqual(r.band, "PATIENT", c)
+
+    def test_near_free_cost_cannot_reach_patient(self):
+        for c in self.FINE:
+            if c > 1.15:
+                break
+            for prot in (True, False):
+                r = pif35.score([1.0] * 20, c, prot, True, True, curve(0.9, 0.6))
+                self.assertNotEqual(r.band, "PATIENT", (c, prot))
 
     def test_v30_inversion_window_fixed(self):
         # v3.0 gave protects=0.0 vs drops=0.5 for 1.05 < cost < 1.5

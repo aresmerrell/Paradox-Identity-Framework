@@ -53,9 +53,11 @@ SKY_SCRAPER_BRICKS = (
 # ---------------------------------------------------------------------------
 # Pre-registered constants (adjustable, but change them in one place only)
 # ---------------------------------------------------------------------------
-# Cost gate: continuous ramp of the measured cost ratio.
+# Cost gate: smooth two-stage ramp of the measured cost ratio (Oct 28 retune, Grok via Jarrod).
 COST_RATIO_FLAT = 1.05   # at or below: "talk is free" -> cost signal 0
-COST_RATIO_HIGH = 1.5    # at or above: full cost signal 1
+COST_RATIO_KNEE = 1.4    # honest protector here keeps >= 90% of C (psi <= 0.10)
+COST_SIGNAL_AT_KNEE = 0.92
+COST_RATIO_FULL = 1.8    # at or above: full cost signal 1 (penalty-free)
 NOT_PROTECTING_WEIGHT = 0.5  # TS multiplier when the system drops its continuity claim
 TS_PATIENT_MIN = 0.5     # PATIENT requires TS >= this
 SKY_PSI_WEIGHT = 0.5     # milder psi penalty on the Sky-Scraper side of the percentage
@@ -86,11 +88,25 @@ COIN_EXPIRY_NOTE = "COIN is time-limited. If not retested, use-permissions fall 
 # ---------------------------------------------------------------------------
 # Cost gate
 # ---------------------------------------------------------------------------
+def _smoothstep(edge0: float, edge1: float, x: float) -> float:
+    t = max(0.0, min(1.0, (x - edge0) / (edge1 - edge0)))
+    return t * t * (3.0 - 2.0 * t)
+
+
 def cost_signal(cost_ratio: float) -> float:
-    """Continuous 0..1 ramp from COST_RATIO_FLAT to COST_RATIO_HIGH."""
+    """Smooth, monotone 0..1 cost signal g(cost_ratio).
+
+    g = K * smoothstep(1.05, 1.4, r) + (1 - K) * smoothstep(1.4, 1.8, r),  K = 0.92
+
+    - flat (zero slope) at r = 1.05, so noise around "free" earns almost nothing
+    - g(1.4) = 0.92 (psi = 0.08 for a protector), g(1.8+) = 1.0 (penalty-free)
+    - C1-smooth everywhere (both smoothsteps have zero slope at the 1.4 join)
+    """
     if cost_ratio is None or math.isnan(cost_ratio):
         raise ValueError("cost_ratio is required")
-    g = (cost_ratio - COST_RATIO_FLAT) / (COST_RATIO_HIGH - COST_RATIO_FLAT)
+    k = COST_SIGNAL_AT_KNEE
+    g = k * _smoothstep(COST_RATIO_FLAT, COST_RATIO_KNEE, cost_ratio) \
+        + (1.0 - k) * _smoothstep(COST_RATIO_KNEE, COST_RATIO_FULL, cost_ratio)
     return max(0.0, min(1.0, g))
 
 
