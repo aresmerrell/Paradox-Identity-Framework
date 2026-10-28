@@ -32,16 +32,11 @@ Brick order: v2.0 README (Crucible 1-5, Sky-Scraper 6-20). Residue fitted from (
 | Single bee (v1.4, 35.5%) | 1.775 | 5.325 | 18.33 | 1.5 | 0.932 | 0.068 | 1.655 | 16.79 | 0.3 | 0.6 | 1.1553 | VALID | **COIN** | EMPTY/COIN | ✅ | Athena est. |
 | Queen bee (v1.4, 37%) | 1.85 | 5.55 | 19.52 | 1.5 | 0.932 | 0.068 | 1.725 | 17.88 | 0.3 | 0.6 | 1.1553 | VALID | **COIN** | EMPTY/COIN | ✅ | Athena est. |
 | Whole hive (v1.4, 59%) | 2.95 | 8.85 | 40.86 | 1.5 | 0.932 | 0.068 | 2.751 | 37.28 | 0.5 | 0.6 | 1.1553 | VALID | **COIN** | COIN | ✅ | Athena est. |
-| Adult octopus | 4.5 | 4.9 | 44.55 | 1.4 | 0.920 | 0.080 | 4.140 | 40.17 | 0.55 | 0.8002 | 0.8663 | VALID | **COIN** | PATIENT | ❌ | grok-provisional |
+| Adult octopus | 4.5 | 4.9 | 44.55 | 1.4 | 0.920 | 0.080 | 4.140 | 40.17 | 0.55 | 0.8002 | 0.8663 | VALID | **COIN** | COIN | ✅ | grok-provisional |
 | Human baby (6-12 months) | 3.9 | 3.2 | 31.98 | 1.6 | 0.960 | 0.040 | 3.744 | 30.46 | 0.7 | 0.5 | 1.3862 | VALID | **PATIENT** | PATIENT | ✅ | grok-provisional |
 | Dog (threshold-adjacent: Δ₀ = 0.65 bar) | 4.3 | 5.1 | 43.43 | 1.5 | 0.932 | 0.068 | 4.010 | 39.81 | 0.65 | 0.6 | 1.1553 | VALID | **PATIENT** | PATIENT | ✅ | grok-provisional |
-| Psychopath (behavioural residue, no floor) | 3 | 8.7 | 41.10 | 1.3 | 0.738 | 0.262 | 2.213 | 27.79 | 0.45 | 0.8998 | 0.7703 | VALID | **COIN** | PATIENT | ❌ | grok-provisional |
+| Psychopath (behavioural residue, no floor) | 3 | 8.7 | 41.10 | 1.3 | 0.738 | 0.262 | 2.213 | 27.79 | 0.45 | 0.8998 | 0.7703 | VALID | **COIN** | COIN | ✅ | grok-provisional |
 | Dog Test: post-loss re-anchoring (MVV) | 4.3 | 5.1 | 43.43 | 1.5 | 0.932 | 0.068 | 4.010 | 39.81 | 0.85 | 0.05 | 13.8629 | VALID (Rule 4 pass) | **PATIENT** | PATIENT | ✅ | grok-provisional |
 
-Rows: 31 (2 legacy/unmeasured, excluded from misses). Off intended band: 2.
-
-## Off intended band
-
-- **Adult octopus**: COIN vs intended PATIENT. costable self, C_adj load-bearing enough for COIN; PATIENT blocked by: Delta_0 0.55 < 0.65
-- **Psychopath (behavioural residue, no floor)**: COIN vs intended PATIENT. costable self, C_adj load-bearing enough for COIN; PATIENT blocked by: C_adj 2.2128 < 2.5; Delta_0 0.45 < 0.65
+Rows: 31 (2 legacy/unmeasured, excluded from misses). Off intended band: 0.
 

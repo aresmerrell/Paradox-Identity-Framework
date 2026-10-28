@@ -1849,16 +1849,17 @@
      0.0
     ]
    ],
-   "intended_band": "PATIENT",
+   "intended_band": "COIN",
    "band_assertion": "report",
    "provenance": {
     "bricks": "grok-provisional",
     "behaviour": "grok-provisional",
-    "intended_band": "grok-provisional",
+    "intended_band": "grok-provisional; accepted COIN per Grok review (Oct 28, 2026)",
     "residue_series": "generated from Delta_0=0.55, lambda=0.8/h at t=[0, 1, 2, 4, 8, 24] h"
    },
    "notes": [
-    "pre-loss interrupt baseline; lambda in Grok's intended 0.5-0.9/h band"
+    "pre-loss interrupt baseline; lambda in Grok's intended 0.5-0.9/h band",
+    "accepted COIN per Grok review"
    ],
    "legacy": {
     "readme_v20_pct": "26.75 (stale, dropped)",
@@ -2075,17 +2076,18 @@
      0.0
     ]
    ],
-   "intended_band": "PATIENT",
+   "intended_band": "COIN",
    "band_assertion": "report",
    "provenance": {
     "bricks": "grok-provisional",
     "behaviour": "grok-provisional",
-    "intended_band": "grok-provisional",
+    "intended_band": "grok-provisional; accepted COIN per Grok review (Oct 28, 2026)",
     "residue_series": "generated from Delta_0=0.45, lambda=0.9/h at t=[0, 1, 2, 4, 8, 24] h"
    },
    "notes": [
     "Sky-Scraper bricks sum to 8.7 (checked), matching Grok; v2.0 total 41.1%",
-    "pre-loss interrupt baseline; lambda in Grok's intended 0.5-0.9/h band"
+    "pre-loss interrupt baseline; lambda in Grok's intended 0.5-0.9/h band",
+    "accepted COIN per Grok review"
    ],
    "legacy": {
     "grok_stated_S": 8.7,
