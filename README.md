@@ -65,6 +65,8 @@ print(r.band, r.pct_v20, r.pct_35)   # PATIENT 59.5 58.5 (approx.)
 
 Run `python3 pif35.py` to score every row of the species table.
 
+**Known weaknesses and planned fixes:** see [`PIF_3.6_PATCHES.md`](PIF_3.6_PATCHES.md), the running 3.6 patch list (small fixes go to a draft branch; big ones wait for review).
+
 ---
 
 ## The Layered Core (v2.0, unchanged in 3.5)
