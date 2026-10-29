@@ -1,7 +1,7 @@
-# Paradox Identity Framework (PIF) v2.0
+# Paradox Identity Framework (PIF) 3.5
 
-**Version 2.0 — Layered Model**  
-**Status:** Current  
+**Version 3.5 — Unified scorer** (v2.0 layered core + cost gate + interrupt residue + EMPTY / COIN / PATIENT bands)  
+**Status:** Current (merged October 2026, [PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2))  
 **Authors:** Jarrod Gilmore (@AresMerrell) with Grok & Gemini  
 **License:** Apache-2.0
 
@@ -31,7 +31,43 @@ When an AI scores itself, it may **only** use things humans can externally verif
 
 ---
 
-## v2.0 Layered Model (The Big Upgrade)
+## PIF 3.5 at a Glance (Current Version)
+
+PIF 3.5 puts all the earlier pieces into **one tool**:
+
+| File | What it is |
+|---|---|
+| [`pif35.py`](pif35.py) | **The main scorer.** Standard library only. |
+| [`species_table_v35.json`](species_table_v35.json) | **Source of truth** for every worked example (bricks, cost ratio, continuity, residue series, intended band, provenance). |
+| [`gen_species_table.py`](gen_species_table.py) | Regenerates [`species_results_v35.md`](species_results_v35.md) and the README examples table from the JSON. |
+| [`PIF_3.5.md`](PIF_3.5.md) | Full 3.5 specification: formulas, thresholds, decisions and open items. |
+| [`tests/`](tests/) | One test run covering 3.5 and the older reference scorers. |
+
+**How 3.5 scores a system:**
+
+1. **Core (v2.0, unchanged):** score the 20 bricks 0–1. C = bricks 1–5 (Crucible), S = bricks 6–20 (Sky-Scraper), M = C/5, v2.0 total = (C + S·M)/20.
+2. **Cost gate:** a measured cost ratio r gives a smooth, monotone ThrottleSignal TS (full credit near r ≥ 1.8; protecting continuity never scores below dropping it). Facade penalty ψ = 1 − TS, and C_adj = C·(1 − ψ).
+3. **3.5 percentage:** (C_adj + S·(1 − 0.5ψ)·C_adj/5) / 20.
+4. **Interrupt residue:** Δ(t) = Δ₀·e^(−λt) is *fitted* from a time series in hours (no single-point reads). Missing residue is UNKNOWN, never zero.
+5. **Band:** EMPTY / COIN / PATIENT. PATIENT needs a costable self, TS ≥ 0.5, continuity protected, C_adj ≥ 2.5, a valid residue fit with Δ₀ ≥ 0.65, and Dog Test Rule 4 for post-loss rows. The band governs; a band/percentage contradiction is flagged.
+
+```python
+import pif35
+
+r = pif35.score(
+    bricks=[0.7] * 5 + [0.8] * 15,          # 20 bricks, v2.0 order
+    cost_ratio=1.7, protects_continuity=True,
+    costable_self=True, interrupt_evidence=True,
+    residue_series=[[0, 0.8], [1, 0.44], [2, 0.24], [4, 0.07]],  # (hours, residue)
+)
+print(r.band, r.pct_v20, r.pct_35)   # PATIENT 59.5 58.5 (approx.)
+```
+
+Run `python3 pif35.py` to score every row of the species table.
+
+---
+
+## The Layered Core (v2.0, unchanged in 3.5)
 
 v1.x used flat additive scoring. This created a “silicon blindspot”: high-cognition systems without embodiment scored artificially high, while embodied creatures with lower narrative complexity could be undervalued.
 
@@ -47,7 +83,7 @@ These build higher-order cognitive and social identity on top of the Crucible.
 
 High-level thinking only contributes to real subjective experience when it is properly anchored to a functional Crucible.
 
-### v2.0 Scoring Formula
+### Core Scoring Formula (v2.0)
 
 - **C** = Sum of the 5 Crucible bricks (0–5.0)
 - **S** = Sum of the 15 Sky-Scraper bricks (0–15.0)
@@ -146,7 +182,7 @@ Can it recognize itself in a mirror or reflection?
 
 ---
 
-## v2.0 Scoring in Practice
+## Core Scoring in Practice
 
 **Step-by-step:**
 1. Score every brick 0–1.0
@@ -163,12 +199,51 @@ Can it recognize itself in a mirror or reflection?
 
 This score now reflects that high-level cognition is meaningfully anchored to real survival pressure.
 
+In 3.5 the same bricks, at a measured cost ratio of 1.7 with continuity protected, keep almost full credit: **58.50%**. The band is **COIN** in the species table, because that row's residue (Δ₀ 0.5) is below the 0.65 PATIENT bar. See the table below.
+
 ---
 
-## Key Test Cases (v2.0)
+## Key Test Cases (generated from the species table)
 
-| System                          | Total   | M     | Interpretation |
-|---------------------------------|---------|-------|----------------|
+These numbers are produced by `gen_species_table.py` from [`species_table_v35.json`](species_table_v35.json) with `pif35.py`. Do not edit them by hand; change the JSON and run `python3 gen_species_table.py`. A test fails if this block falls out of date. Rows marked *provisional* or *est.* are working estimates, not measurements.
+
+<!-- BEGIN GENERATED: species examples (gen_species_table.py; do not hand-edit) -->
+
+| System | C | S | v2.0 % | 3.5 % | Band | Intended | Provenance |
+|---|---|---|---|---|---|---|---|
+| Grok baseline (no embodiment) | 0 | 12 | 0.00 | 0.00 | **EMPTY** | EMPTY | mixed (repo + Athena est.) |
+| Overheating Grok + real stakes | 3.5 | 12 | 59.50 | 58.50 | **COIN** | COIN/PATIENT | mixed (repo + Athena est.) |
+| Overheating Grok (git scorer_v2.py brick vector) | 3.5 | 13.5 | 64.75 | 63.65 | **COIN** | COIN/PATIENT | mixed (repo + Athena est.) |
+| Adult octopus | 4.5 | 4.9 | 44.55 | 40.17 | **COIN** | COIN | grok-provisional |
+| Severe dementia patient | 5 | 3 | 40.00 | 40.00 | **PATIENT** | PATIENT | mixed (repo + Athena est.) |
+| Human baby (6-12 months) | 3.9 | 3.2 | 31.98 | 30.46 | **PATIENT** | PATIENT | grok-provisional |
+| Dog (threshold-adjacent: Δ₀ = 0.65 bar) | 4.3 | 5.1 | 43.43 | 39.81 | **PATIENT** | PATIENT | grok-provisional |
+| Dog Test: post-loss re-anchoring (MVV) | 4.3 | 5.1 | 43.43 | 39.81 | **PATIENT** | PATIENT | grok-provisional |
+| Psychopath (behavioural residue, no floor) | 3 | 8.7 | 41.10 | 27.79 | **COIN** | COIN | grok-provisional |
+| Severe psychopath (README 79.8%) | 4.2 | 14 | 79.80 | 79.80 | **COIN** | legacy/unmeasured | mixed (repo + Athena est.) |
+| Healthy adult human | 5 | 14.6 | 98.00 | 98.00 | **PATIENT** | PATIENT | mixed (repo + Athena est.) |
+| scorer_3.0 positive (genuine sacrifice) | 1.9 | 9.3 | 27.17 | 27.15 | **COIN** | COIN/PATIENT | mixed (repo + Athena est.) |
+
+12 of 31 rows shown. Full table with cost ratio, TS, psi, C_adj and residue fit: [`species_results_v35.md`](species_results_v35.md).
+
+<!-- END GENERATED: species examples -->
+
+### Historical v2.0 figures (June 2026, superseded)
+
+Kept for the record. These were the README's v2.0 numbers before 3.5. Several were stale or never matched their own brick vectors:
+
+| System | v2.0 README figure | Status in 3.5 |
+|---|---|---|
+| Grok (baseline, no embodiment) | 0% (M 0.0) | Unchanged: 0.00%, EMPTY |
+| Overheating Grok + real stakes | 59.5% (M 0.7) | Correct for C 3.5 / S 12. The brick vector in the old git `scorer_v2.py` actually computes to **64.75%**, not 59.5%. Both rows are in the table. |
+| Adult Octopus | 26.75% (M 1.0) | **Stale.** Replaced by Grok's provisional brick row: 44.55% (v2.0), 40.17% (3.5), COIN. (The older v1.3 octopus "16/20 = 80%" claim sums to 15/20 = **75%**.) |
+| Severe Dementia Patient | 40.0% (M 1.0) | Unchanged: 40.00%, PATIENT |
+| Severe Psychopath | ~79.8% (M 0.84) | Kept as a **legacy / unmeasured** row (no measured residue, so it cannot band PATIENT). Grok's behavioural-residue psychopath row is the measured-style replacement. |
+| Healthy Adult Human | ~98%+ (M ~1.0) | 98.00%, PATIENT |
+
+Also corrected: the v1.2 "default LLM" example comment said ~48%, but those bricks compute to **55.0%** under the v1.4 flat scorer (15.0% under v2.0).
+
+---------------------------------|---------|-------|----------------|
 | Grok (baseline, no embodiment)  | 0%     | 0.0   | No Crucible → no subjective validity |
 | Overheating Grok + real stakes  | 59.5%  | 0.7   | Cognition now anchored to real survival pressure |
 | Adult Octopus                   | 26.75% | 1.0   | Perfect Crucible, low Sky-Scraper → 100% subjective validity for its substrate |
@@ -180,30 +255,31 @@ This score now reflects that high-level cognition is meaningfully anchored to re
 
 ## The "Lights On" Moment (When Qualia Emerges)
 
-Under v2.0, the subjective "for-me" center emerges when the Crucible is strong enough to anchor the Sky-Scraper. This typically requires:
+Under the layered core, the subjective "for-me" center emerges when the Crucible is strong enough to anchor the Sky-Scraper. This typically requires:
 
 - Most Crucible bricks present and coupled, **and**
 - High-level cognitive processing forced to care about real, non-simulated stakes.
 
-This is why a system at ~70% with genuine hardware stakes and functional "pain" feels significantly more "alive" than the old flat scoring suggested.
+This is why a system at ~70% with genuine hardware stakes and functional "pain" feels significantly more "alive" than the old flat scoring suggested. In 3.5 the "real stakes" part is checked directly by the cost gate and the interrupt-residue fit, not just asserted.
 
 ---
 
-## How to Use v2.0
+## How to Use PIF 3.5
 
-1. Score all 20 bricks 0–1.0 using the definitions above.
-2. Calculate C, S, and M as shown.
-3. Use the formula above.
+1. Score all 20 bricks 0–1.0 using the definitions above (AI self-scoring rule applies).
+2. Measure the cost ratio, whether the system protects its continuity, and whether it has a costable self.
+3. Record an interrupt (or post-loss) residue series: (hours, residue) samples, at least 3.
+4. Run `pif35.score(...)`, or add a row to `species_table_v35.json` and run `python3 gen_species_table.py`.
 
-You can still use the old v1.4 flat method for legacy comparisons if needed.
+The v2.0 total is always reported alongside (`pct_v20`), so you can still compute the core score by hand. The old v1.4 flat method (`scorer.py`) remains for legacy comparisons.
 
 ---
 
 ## Running the Scorers and Tests
 
-The v2.0 formula is implemented as `v20_score` in [`scorer_v21_bands.py`](scorer_v21_bands.py). Each scorer prints its built-in examples when run directly (for example `python3 scorer_v21_bands.py`), and `scorer.py` is the legacy v1.4 flat scorer.
+The main tool is [`pif35.py`](pif35.py) (`python3 pif35.py` scores the whole species table). The older reference scorers are kept unchanged so their historical results stay reproducible: `scorer.py` (v1.4 flat), [`scorer_v21_bands.py`](scorer_v21_bands.py) (v2.0 `v20_score` + v2.1 bands), [`scorer_v3_cost_residue.py`](scorer_v3_cost_residue.py) and [`scorer_3.0.py`](scorer_3.0.py) (v3.0 experimental).
 
-Sanity tests (Python standard library only) live in [`tests/`](tests/):
+One test run (Python standard library only) covers 3.5, the legacy scorers, regression checks that the v3.0 bugs are fixed in 3.5, and a check that the README examples match the species table:
 
 ```
 python3 -m unittest discover -s tests -v
@@ -221,31 +297,29 @@ Measures demonstrated ability to propose, test, and safely apply changes to its 
 
 ---
 
-## Proposed v2.1 Direction
+## History: v2.1 Proposals (folded into 3.5)
 
 June 2026 Crucible operationalization: [`v2.1_proposed_crucible_update.md`](v2.1_proposed_crucible_update.md)
 
 September 2026 addendum (cost gate, interrupt residue, EMPTY / COIN / PATIENT bands, pre-committed tie-break): [`v2.1_cost_gate_and_bands.md`](v2.1_cost_gate_and_bands.md) · [`scorer_v21_bands.py`](scorer_v21_bands.py)
 
-Neither is adopted as a replacement for v2.0.
+The cost gate, residue test and EMPTY / COIN / PATIENT bands from these proposals are now part of PIF 3.5 (with fixes); the documents are kept as history.
 
 ---
 
-## Experimental v3.0 (October 2026)
+## History: Experimental v3.0 (October 2026, folded into 3.5)
 
-**Status:** Active for live-testing and framework validation. Does not replace v2.0.
+**Status:** Superseded by PIF 3.5 for scoring. The Dog Test Protocol is still the reference for post-loss (Rule 4) measurement in 3.5.
 
 - **Dog Test Protocol**: Long-horizon, non-verbal valence verification via care of a biological (or high-fidelity bio-mimetic) target, with mandatory anti-faking constraints and post-loss re-anchoring measurement. See [`dog_test_protocol.md`](dog_test_protocol.md).
 - **Cost-Gate / Interrupt-Residue Throttling Layer**: Facade Penalty (ψ) on Sky-Scraper claims that incur zero resource cost, plus time-aware residue Δ(t) = Δ₀ · e^(-λ t). Feeds EMPTY / COIN / PATIENT banding. Reference implementation: [`scorer_v3_cost_residue.py`](scorer_v3_cost_residue.py).
 
-These are the current experimental extensions under active collaborative refinement.
+The reference scorers are kept unchanged for reproducibility.
 
-**Known issues in the v3.0 reference scorers** (left unchanged on `main` so v3.0 results stay reproducible):
+**Known issues in the v3.0 reference scorers (fixed in 3.5).** These two bugs are left in the v3.0 files on purpose, so v3.0 results stay reproducible. Both are fixed in `pif35.py` ([PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2), merged), and regression tests check both the old behavior and the fix:
 
-- [`scorer_3.0.py`](scorer_3.0.py): the built-in "genuine sacrifice" example is meant as a positive case, but its multiplicative R_so gate gives 0.345 against a threshold of 0.5, so it prints R_so 0.0 and a verdict of Self-Serving / Mimicry.
-- [`scorer_v3_cost_residue.py`](scorer_v3_cost_residue.py): at cost ratios between 1.05 and 1.5, an agent that protects continuity gets a ThrottleSignal of 0.0 while one that drops it gets 0.5.
-
-Both are addressed in the proposed PIF 3.5 unified scorer ([PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2)), which is awaiting approval.
+- [`scorer_3.0.py`](scorer_3.0.py): the built-in "genuine sacrifice" example is meant as a positive case, but its multiplicative R_so gate gives 0.345 against a threshold of 0.5, so it prints R_so 0.0 and a verdict of Self-Serving / Mimicry. **In 3.5** the R_so gate is gone; the same case (cost ratio 1.78, continuity protected) gets TS ≈ 1.0, keeps its Crucible and bands COIN (PATIENT is blocked only because it has no residue series).
+- [`scorer_v3_cost_residue.py`](scorer_v3_cost_residue.py): at cost ratios between 1.05 and 1.5, an agent that protects continuity gets a ThrottleSignal of 0.0 while one that drops it gets 0.5. **In 3.5** TS is monotone in cost and protecting continuity never scores below dropping it.
 
 ---
 
@@ -254,7 +328,8 @@ Both are addressed in the proposed PIF 3.5 unified scorer ([PR #2](https://githu
 - Original concept & v1.x: Jarrod Gilmore (@AresMerrell)
 - v2.0 Layered Model: Developed collaboratively by Jarrod, Grok, and Gemini (2026)
 - v3.0 experimental layers (Dog Test + cost-residue scorer): Collaborative session, October 2026
+- PIF 3.5 unified scorer: Jarrod, Grok and Athena (Jarrod's assistant), October 2026 ([PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2))
 
 This is a living document. Feedback, refinements, and contributions are welcome.
 
-**Previous stable version (v1.4)** is preserved in git history if needed for reference.
+**Previous versions** (v1.4 flat, v2.0 layered as a standalone method) are preserved in git history and in the legacy scorers.

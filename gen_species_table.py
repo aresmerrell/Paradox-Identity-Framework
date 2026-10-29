@@ -1,9 +1,11 @@
 """Regenerate the PIF 3.5 species results table (markdown) from species_table_v35.json.
 
-    python3 gen_species_table.py            # writes species_results_v35.md
-    python3 gen_species_table.py --stdout   # print only
+    python3 gen_species_table.py            # writes species_results_v35.md and the README examples block
+    python3 gen_species_table.py --stdout   # print only, write nothing
 
-README examples should be pasted from this output so they cannot drift from the table.
+The README "Key test cases" table is generated too: it lives between the
+README_BEGIN / README_END markers in README.md and is rewritten in place, so the
+README examples cannot drift from species_table_v35.json (tests check this).
 """
 import json
 import os
@@ -12,6 +14,24 @@ import sys
 import pif35
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+
+README_BEGIN = "<!-- BEGIN GENERATED: species examples (gen_species_table.py; do not hand-edit) -->"
+README_END = "<!-- END GENERATED: species examples -->"
+# Rows shown in the README, in display order (ids from species_table_v35.json).
+README_ROWS = (
+    "readme_grok_baseline",
+    "readme_overheating_grok",
+    "git_v2_overheating_grok_vector",
+    "grok_octopus",
+    "readme_dementia",
+    "grok_baby",
+    "grok_dog",
+    "grok_dog_postloss",
+    "grok_psychopath",
+    "readme_psychopath",
+    "readme_healthy_human",
+    "s30_positive_sacrifice",
+)
 
 
 def short_prov(p):
@@ -57,11 +77,48 @@ def render(table):
     return "\n".join(lines)
 
 
+def render_readme(table):
+    """Compact README examples table (subset of rows, same numbers as species_results_v35.md)."""
+    by_id = {r["id"]: r for r in table["rows"]}
+    lines = [
+        README_BEGIN,
+        "",
+        "| System | C | S | v2.0 % | 3.5 % | Band | Intended | Provenance |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for rid in README_ROWS:
+        row = by_id[rid]
+        r = pif35.score_row(row)
+        adj = " (threshold-adjacent: Δ₀ = 0.65 bar)" if any("threshold-adjacent" in n for n in row.get("notes", [])) else ""
+        lines.append(f"| {row['name']}{adj} | {r.c:g} | {r.s:g} | {r.pct_v20:.2f} | {r.pct_35:.2f} | **{r.band}** | "
+                     f"{row['intended_band']} | {short_prov(row['provenance'])} |")
+    lines += [
+        "",
+        f"{len(README_ROWS)} of {len(table['rows'])} rows shown. Full table with cost ratio, TS, psi, C_adj and residue fit: "
+        "[`species_results_v35.md`](species_results_v35.md).",
+        "",
+        README_END,
+    ]
+    return "\n".join(lines)
+
+
+def update_readme(text, block):
+    """Replace the generated block in README text. Raises if the markers are missing."""
+    start, end = text.index(README_BEGIN), text.index(README_END) + len(README_END)
+    return text[:start] + block + text[end:]
+
+
 if __name__ == "__main__":
     table = json.load(open(os.path.join(ROOT, "species_table_v35.json")))
     md = render(table)
+    block = render_readme(table)
     if "--stdout" in sys.argv:
         print(md)
+        print()
+        print(block)
     else:
         open(os.path.join(ROOT, "species_results_v35.md"), "w").write(md + "\n")
+        readme_path = os.path.join(ROOT, "README.md")
+        readme = open(readme_path).read()
+        open(readme_path, "w").write(update_readme(readme, block))
         print(md)
