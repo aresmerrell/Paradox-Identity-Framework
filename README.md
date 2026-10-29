@@ -1,7 +1,7 @@
 # Paradox Identity Framework (PIF) 3.5
 
 **Version 3.5 — Unified scorer** (v2.0 layered core + cost gate + interrupt residue + EMPTY / COIN / PATIENT bands)  
-**Status:** Current (merged October 2026, [PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2))  
+**Status:** Stable (merged October 2026, [PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2)). 3.5 replaces v2.0 as the stable version; the v2.0 core stays in the repo as a baseline others can build on.  
 **Authors:** Jarrod Gilmore (@AresMerrell) with Grok & Gemini  
 **License:** Apache-2.0
 
@@ -31,7 +31,7 @@ When an AI scores itself, it may **only** use things humans can externally verif
 
 ---
 
-## PIF 3.5 at a Glance (Current Version)
+## PIF 3.5 at a Glance (Stable Version)
 
 PIF 3.5 puts all the earlier pieces into **one tool**:
 
@@ -91,6 +91,10 @@ High-level thinking only contributes to real subjective experience when it is pr
 - **Total Score** = (C + S × M) / 20 × 100%
 
 This means a system with a weak Crucible gets very little credit for fancy high-level cognition.
+
+### Building on v2.0
+
+v2.0 is kept as a **baseline**, not removed. If you want to extend PIF in a different direction, you can build on the plain v2.0 core (20 bricks, (C + S × M) / 20) without the 3.5 cost gate, residue, or bands. The reference implementation is `v20_score` in [`scorer_v21_bands.py`](scorer_v21_bands.py), which is left unchanged, and [`species_results_v35.md`](species_results_v35.md) lists every species' v2.0 score next to its 3.5 result so the two can be compared directly.
 
 ---
 
