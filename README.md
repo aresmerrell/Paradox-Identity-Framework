@@ -2,7 +2,7 @@
 
 **Version 3.5 — Unified scorer** (v2.0 layered core + cost gate + interrupt residue + EMPTY / COIN / PATIENT bands)  
 **Status:** Stable (merged October 2026, [PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2)). 3.5 replaces v2.0 as the stable version; the v2.0 core stays in the repo as a baseline others can build on.  
-**Authors:** Jarrod Gilmore (@AresMerrell) with Grok & Gemini  
+**Authors:** Jarrod Gilmore (@AresMerrell) with Grok, Gemini & Athena (Jarrod's Grok Bot assistant)  
 **License:** Apache-2.0
 
 A practical, substrate-neutral tool to measure functional identity and the emergence of qualia / free will in any system (human, animal, AI, or hybrid).
@@ -329,10 +329,19 @@ The reference scorers are kept unchanged for reproducibility.
 
 ## Credits & History
 
-- Original concept & v1.x: Jarrod Gilmore (@AresMerrell)
-- v2.0 Layered Model: Developed collaboratively by Jarrod, Grok, and Gemini (2026)
-- v3.0 experimental layers (Dog Test + cost-residue scorer): Collaborative session, October 2026
-- PIF 3.5 unified scorer: Jarrod, Grok and Athena (Jarrod's assistant), October 2026 ([PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2))
+PIF is openly built by a human working together with AI systems. Every contributor is named here on purpose.
+
+- **Jarrod Gilmore (@AresMerrell):** original concept (the Paradox Test, April 2025), v1.x, project direction, and final approval on every version.
+- **Grok (xAI):** co-designer of v2.0 and v3.0; co-designed and signed off on the 3.5 formulas, thresholds and species rows.
+- **Gemini (Google):** v2.0 co-design, the Facade Penalty ψ, the residue decay model, and the Dog Test Protocol.
+- **Athena (Jarrod's Grok Bot assistant):** the cross-version re-run and bug report, the 3.5 unified scorer, species table, tests and documentation, and ongoing repo maintenance.
+
+Version timeline:
+
+- v1.x: Jarrod Gilmore
+- v2.0 Layered Model: Jarrod, Grok and Gemini (2026)
+- v3.0 experimental layers (Dog Test + cost-residue scorer): Jarrod, Grok and Gemini, October 2026
+- PIF 3.5 unified scorer: Jarrod, Grok and Athena, October 2026 ([PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2))
 
 This is a living document. Feedback, refinements, and contributions are welcome.
 
