@@ -240,6 +240,13 @@ Neither is adopted as a replacement for v2.0.
 
 These are the current experimental extensions under active collaborative refinement.
 
+**Known issues in the v3.0 reference scorers** (left unchanged on `main` so v3.0 results stay reproducible):
+
+- [`scorer_3.0.py`](scorer_3.0.py): the built-in "genuine sacrifice" example is meant as a positive case, but its multiplicative R_so gate gives 0.345 against a threshold of 0.5, so it prints R_so 0.0 and a verdict of Self-Serving / Mimicry.
+- [`scorer_v3_cost_residue.py`](scorer_v3_cost_residue.py): at cost ratios between 1.05 and 1.5, an agent that protects continuity gets a ThrottleSignal of 0.0 while one that drops it gets 0.5.
+
+Both are addressed in the proposed PIF 3.5 unified scorer ([PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2)), which is awaiting approval.
+
 ---
 
 ## Credits & History
