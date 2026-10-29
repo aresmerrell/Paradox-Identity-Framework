@@ -42,6 +42,7 @@ PIF 3.5 puts all the earlier pieces into **one tool**:
 | [`gen_species_table.py`](gen_species_table.py) | Regenerates [`species_results_v35.md`](species_results_v35.md) and the README examples table from the JSON. |
 | [`PIF_3.5.md`](PIF_3.5.md) | Full 3.5 specification: formulas, thresholds, decisions and open items. |
 | [`tests/`](tests/) | One test run covering 3.5 and the older reference scorers. |
+| [`pif36.py`](pif36.py) | **3.6 draft (not approved).** Patches from [`PIF_3.6_PATCHES.md`](PIF_3.6_PATCHES.md) on top of `pif35.py`; 3.5 results are unchanged by default. |
 
 **How 3.5 scores a system:**
 

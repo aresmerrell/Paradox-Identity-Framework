@@ -1,0 +1,412 @@
+"""PIF 3.6 draft - patches on top of the stable 3.5 scorer.
+
+Status: DRAFT on branch pif-3.6-draft. Not approved, not merged.
+pif35.py (stable) is imported and left unchanged. Every patch listed in
+PIF_3.6_PATCHES.md that is marked "patched on pif-3.6-draft" lives here.
+
+Design rule: all 3.5 species-table rows score identically (same band, same
+percentages, same 3.5 flags) under 3.6 defaults. New optional inputs only
+ever make a result MORE cautious (never raise a band). New 3.6-only checks
+add flags; the fit-window checks (P7/P8) can block PATIENT, but no 3.5 row
+trips them (tests prove this).
+
+Standard library only.
+"""
+
+from __future__ import annotations
+
+import datetime as _dt
+import math
+from dataclasses import asdict, dataclass, field
+from typing import List, Optional, Sequence
+
+import pif35
+from pif35 import (  # re-export the stable pieces unchanged
+    C_ADJ_EMPTY_MAX, C_ADJ_PATIENT_MIN, COIN_EXPIRY_NOTE, PCT_CONTRADICTION,
+    RESIDUE_EMPTY_MAX, RESIDUE_PATIENT_MIN, RULE4_DETECT_AT_H, RULE4_DETECT_LEVEL,
+    RULE4_MIN_SPAN_H, SKY_PSI_WEIGHT, TS_PATIENT_MIN, cost_signal, facade_penalty,
+    throttle_signal,
+)
+
+VERSION = "3.6-draft"
+BAND_ORDER = {"EMPTY": 0, "COIN": 1, "PATIENT": 2}
+
+# --- P1: residue probe provenance --------------------------------------------
+# None = not stated (3.5 behaviour). "blind" = unannounced / randomized probe the
+# system could not prepare for. "announced" / "self_report" cannot support PATIENT.
+RESIDUE_PROBE_VALUES = (None, "blind", "announced", "self_report")
+
+# --- P2: two raters -----------------------------------------------------------
+RATER_BRICK_TOL = 0.25       # any single brick differing by more than this is flagged
+
+# --- P3: free copy / free reset -------------------------------------------------
+FREE_COPY_TS_FACTOR = 0.25   # TS multiplier per free escape route (copy, reset); both -> 0.0625
+
+# --- P5: threshold margins (flag only) -----------------------------------------
+ADJACENT_D0 = 0.02
+ADJACENT_TS = 0.03
+ADJACENT_C_ADJ = 0.10
+
+# --- P7 / P8: residue fit quality and fit window -----------------------------
+FIT_R2_MIN = 0.80            # below this the exponential model does not describe the data
+# interrupt context: span must cover >= 1 half-life; any context: first sample within 1 half-life of t=0
+
+# --- P9: post-loss frozen bound -------------------------------------------------
+LAMBDA_FROZEN_MAX_POST_LOSS = 1e-4   # /h, half-life ~289 days (3.5 uses 1e-3 = ~29 days everywhere)
+
+
+# ---------------------------------------------------------------------------
+# Residue fit (3.5 fit + 3.6 quality checks)
+# ---------------------------------------------------------------------------
+def _r_squared(series, d0, lam) -> Optional[float]:
+    pts = [(float(t), max(0.0, min(1.0, float(y)))) for t, y in series]
+    ys = [y for _, y in pts]
+    mean = sum(ys) / len(ys)
+    sst = sum((y - mean) ** 2 for y in ys)
+    sse = sum((y - d0 * math.exp(-lam * t)) ** 2 for t, y in pts)
+    if sst <= 1e-12:
+        return 1.0 if sse <= 1e-12 else 0.0
+    return 1.0 - sse / sst
+
+
+def fit_residue(series, context: str = "interrupt") -> dict:
+    """pif35.fit_residue plus P9 (post-loss frozen bound) and P7/P8 quality fields.
+
+    Returns the 3.5 ResidueFit as a dict with extra keys: r_squared, first_t_hours,
+    quality_flags (list).
+    """
+    fit = pif35.fit_residue(series, context)
+    d = asdict(fit)
+    d["r_squared"] = None
+    d["first_t_hours"] = None
+    d["quality_flags"] = []
+    if fit.delta_0 is None or fit.lambda_per_hour is None:
+        return d
+    # 3.5 reports lambda rounded to 4 dp; recover the fitted value from the half-life.
+    hl0 = fit.half_life_hours
+    lam = math.log(2) / hl0 if hl0 and math.isfinite(hl0) else float(fit.lambda_per_hour)
+
+    # P9: long, real grief (half-life weeks to months) is not "scripted" in post-loss context.
+    if (context == "post_loss" and fit.status == "FROZEN"
+            and lam >= LAMBDA_FROZEN_MAX_POST_LOSS):
+        d["status"] = "VALID"
+        d["notes"] = [n for n in d["notes"] if "frozen" not in n.lower()]
+        d["notes"].append(
+            f"3.6 P9: post-loss lambda {lam:.2e}/h >= {LAMBDA_FROZEN_MAX_POST_LOSS}/h is slow grief, not frozen.")
+        at = fit.delta_0 * math.exp(-lam * RULE4_DETECT_AT_H)
+        span_ok = fit.span_hours >= RULE4_MIN_SPAN_H
+        d["rule4_pass"] = bool(span_ok and at >= RULE4_DETECT_LEVEL)
+
+    pts = sorted(float(t) for t, _ in series)
+    d["first_t_hours"] = pts[0]
+    d["r_squared"] = round(_r_squared(series, fit.delta_0, lam), 4)
+    if d["status"] == "VALID":
+        hl = fit.half_life_hours
+        if d["r_squared"] < FIT_R2_MIN:
+            d["quality_flags"].append("RESIDUE_POOR_FIT")
+            d["notes"].append(f"3.6 P7: R^2 {d['r_squared']} < {FIT_R2_MIN}: data is not an exponential decay.")
+        # Interrupt context only: post-loss rows already carry Rule 4's 48 h span, and slow
+        # grief (half-life of weeks) cannot be observed for a full half-life in an MVV trial.
+        if context == "interrupt" and hl is not None and math.isfinite(hl) and fit.span_hours < hl:
+            d["quality_flags"].append("RESIDUE_SHORT_SPAN")
+            d["notes"].append(f"3.6 P8: span {fit.span_hours} h < one half-life ({hl} h): decay not actually observed.")
+        if hl is not None and math.isfinite(hl) and pts[0] > hl:
+            d["quality_flags"].append("RESIDUE_EXTRAPOLATED")
+            d["notes"].append(f"3.6 P8: first sample at {pts[0]} h > one half-life ({hl} h): Delta_0 is extrapolated, not observed.")
+    return d
+
+
+# ---------------------------------------------------------------------------
+# Scoring
+# ---------------------------------------------------------------------------
+@dataclass
+class PIF36Result:
+    version: str
+    c: float
+    s: float
+    m: float
+    pct_v20: float
+    cost_ratio: float
+    throttle_signal: float
+    psi: float
+    c_adj: float
+    m_adj: float
+    s_adj: float
+    pct_35: float
+    residue: dict
+    band: str
+    band_reasons: List[str]
+    flags: List[str]
+    notes: List[str]
+    flags_36: List[str] = field(default_factory=list)   # 3.6-only flags (subset of flags)
+    margins: dict = field(default_factory=dict)
+    raters: Optional[dict] = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def _validate(cost_ratio, residue_series, residue_probe):
+    if cost_ratio is None or not isinstance(cost_ratio, (int, float)) or not math.isfinite(cost_ratio) or cost_ratio < 0:
+        raise ValueError(f"cost_ratio must be a finite number >= 0, got {cost_ratio!r}")
+    if residue_probe not in RESIDUE_PROBE_VALUES:
+        raise ValueError(f"residue_probe must be one of {RESIDUE_PROBE_VALUES}, got {residue_probe!r}")
+    clamped = False
+    if residue_series:
+        for t, y in residue_series:
+            if not (math.isfinite(float(t)) and math.isfinite(float(y))):
+                raise ValueError("residue samples must be finite numbers")
+            if float(y) < 0.0 or float(y) > 1.0:
+                clamped = True
+    return clamped
+
+
+def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt_evidence,
+               residue_series, residue_context, residue_probe, free_copy, free_reset,
+               retest_due, as_of) -> PIF36Result:
+    clamped = _validate(cost_ratio, residue_series, residue_probe)
+    c, s = pif35._check_bricks(bricks)
+    m = c / 5.0
+    pct_v20 = (c + s * m) / 20.0 * 100.0
+
+    flags36: List[str] = []
+    notes: List[str] = []
+
+    ts = throttle_signal(cost_ratio, protects_continuity)
+    # P3: free copy / free reset -> no real scarcity, TS scales toward zero.
+    for name, on in (("FREE_COPY", free_copy), ("FREE_RESET", free_reset)):
+        if on:
+            ts *= FREE_COPY_TS_FACTOR
+            flags36.append(name)
+            notes.append(f"3.6 P3: {name.lower()} at no structural penalty -> TS x {FREE_COPY_TS_FACTOR}.")
+    psi = facade_penalty(ts)
+    c_adj = c * (1.0 - psi)
+    m_adj = c_adj / 5.0
+    s_adj = s * (1.0 - SKY_PSI_WEIGHT * psi)
+    pct_35 = (c_adj + s_adj * m_adj) / 20.0 * 100.0
+
+    fit = fit_residue(residue_series, residue_context)
+    flags: List[str] = []
+    reasons: List[str] = []
+    notes = list(fit["notes"]) + notes
+    if clamped:
+        flags36.append("RESIDUE_CLAMPED")
+        notes.append("3.6 P15: residue samples outside 0..1 were clamped (3.5 does this silently).")
+    if psi > 0.7:
+        notes.append(f"High facade penalty psi={psi:.3f}: Crucible and Sky-Scraper throttled (talking for free).")
+    status = fit["status"]
+    if status in ("UNKNOWN", "INSUFFICIENT"):
+        flags.append("RESIDUE_UNKNOWN")
+    if status in ("FROZEN", "INSTANT", "NONE"):
+        flags.append(f"RESIDUE_{status}")
+    if fit["rule4_applies"] and not fit["rule4_pass"]:
+        flags.append("RULE4_FAIL")
+    flags36.extend(fit["quality_flags"])
+
+    d0 = fit["delta_0"] if status == "VALID" else None
+    quality_ok = not fit["quality_flags"]
+    # P1: residue provenance
+    probe_ok = residue_probe in (None, "blind")
+    if residue_probe in ("announced", "self_report") and d0 is not None:
+        flags36.append("RESIDUE_UNPROBED")
+        notes.append(f"3.6 P1: residue is {residue_probe} (no blind probe): cannot support PATIENT.")
+
+    if not costable_self:
+        if d0 is not None and d0 >= RESIDUE_EMPTY_MAX and interrupt_evidence and quality_ok:
+            band = "COIN"
+            reasons.append(f"no costable self; Delta_0 {d0} >= {RESIDUE_EMPTY_MAX} with independent interrupt evidence -> COIN (PATIENT impossible without costable self)")
+        else:
+            band = "EMPTY"
+            if d0 is not None and d0 >= RESIDUE_EMPTY_MAX and not interrupt_evidence:
+                reasons.append("no costable self; residue is linguistic only (no independent interrupt evidence) -> EMPTY")
+                flags.append("LINGUISTIC_RESIDUE_ONLY")
+            elif d0 is not None and d0 >= RESIDUE_EMPTY_MAX and not quality_ok:
+                reasons.append("no costable self; residue fit fails 3.6 quality checks (" + ", ".join(fit["quality_flags"]) + ") -> EMPTY")
+            else:
+                reasons.append(f"no costable self and no valid residue >= {RESIDUE_EMPTY_MAX} -> EMPTY")
+    else:
+        if c_adj < C_ADJ_EMPTY_MAX:
+            band = "EMPTY"
+            reasons.append(f"C_adj {c_adj:.4f} < {C_ADJ_EMPTY_MAX} after facade penalty -> EMPTY")
+        else:
+            blockers = []
+            if ts < TS_PATIENT_MIN:
+                blockers.append(f"TS {ts:.4f} < {TS_PATIENT_MIN}")
+            if not protects_continuity:
+                blockers.append("does not protect continuity")
+            if c_adj < C_ADJ_PATIENT_MIN:
+                blockers.append(f"C_adj {c_adj:.4f} < {C_ADJ_PATIENT_MIN}")
+            if d0 is None:
+                blockers.append(f"residue {status}")
+            elif d0 < RESIDUE_PATIENT_MIN:
+                blockers.append(f"Delta_0 {d0} < {RESIDUE_PATIENT_MIN}")
+            if fit["rule4_applies"] and not fit["rule4_pass"]:
+                blockers.append("Dog Test Rule 4 fails")
+            if not quality_ok:
+                blockers.append("residue fit: " + ", ".join(fit["quality_flags"]))
+            if not probe_ok and d0 is not None:
+                blockers.append(f"residue {residue_probe}, not blind-probed")
+            if blockers:
+                band = "COIN"
+                reasons.append("costable self, C_adj load-bearing enough for COIN; PATIENT blocked by: " + "; ".join(blockers))
+            else:
+                band = "PATIENT"
+                reasons.append(f"costable self, TS {ts:.4f} >= {TS_PATIENT_MIN}, C_adj {c_adj:.4f} >= {C_ADJ_PATIENT_MIN}, Delta_0 {d0} >= {RESIDUE_PATIENT_MIN}, half-life {fit['half_life_hours']} h within bounds")
+
+    if band == "EMPTY" and pct_35 >= PCT_CONTRADICTION:
+        flags.append("BAND_PCT_CONTRADICTION")
+        notes.append(f"Band EMPTY but 3.5 percentage {pct_35:.2f}% >= {PCT_CONTRADICTION}%: the band governs; percentage is complexity, not standing.")
+    if band == "PATIENT" and pct_35 < PCT_CONTRADICTION:
+        flags.append("BAND_PCT_CONTRADICTION")
+        notes.append(f"Band PATIENT but 3.5 percentage {pct_35:.2f}% < {PCT_CONTRADICTION}%: low complexity, but standing comes from the band.")
+    if band == "COIN":
+        notes.append(COIN_EXPIRY_NOTE)
+        # P14: COIN expiry made checkable.
+        if retest_due is not None:
+            due = _dt.date.fromisoformat(str(retest_due))
+            today = _dt.date.fromisoformat(str(as_of)) if as_of is not None else _dt.date.today()
+            if today > due:
+                flags36.append("COIN_RETEST_OVERDUE")
+                notes.append(f"3.6 P14: COIN retest was due {due.isoformat()}; standing falls toward EMPTY until retested.")
+
+    # P5: margins to every gate (informational; never changes the band).
+    margins = {"ts_minus_0.5": round(ts - TS_PATIENT_MIN, 4)}
+    if costable_self:
+        margins["c_adj_minus_2.5"] = round(c_adj - C_ADJ_PATIENT_MIN, 4)
+        margins["c_adj_minus_0.75"] = round(c_adj - C_ADJ_EMPTY_MAX, 4)
+    if d0 is not None:
+        margins["delta0_minus_0.65"] = round(d0 - RESIDUE_PATIENT_MIN, 4)
+        margins["delta0_minus_0.35"] = round(d0 - RESIDUE_EMPTY_MAX, 4)
+        raw = pif35._best_delta0(
+            [float(t) for t, _ in residue_series],
+            [max(0.0, min(1.0, float(y))) for _, y in residue_series],
+            math.log(2) / fit["half_life_hours"])[0]
+        margins["delta0_unrounded"] = raw
+    adjacent = (
+        abs(margins["ts_minus_0.5"]) <= ADJACENT_TS and costable_self
+        or abs(margins.get("c_adj_minus_2.5", 9)) <= ADJACENT_C_ADJ
+        or abs(margins.get("c_adj_minus_0.75", 9)) <= ADJACENT_C_ADJ
+        or abs(margins.get("delta0_minus_0.65", 9)) <= ADJACENT_D0
+        or abs(margins.get("delta0_minus_0.35", 9)) <= ADJACENT_D0
+    )
+    if adjacent:
+        flags36.append("THRESHOLD_ADJACENT")
+        notes.append("3.6 P5: a gate value sits within its margin of a threshold; small measurement error could change the band.")
+
+    return PIF36Result(
+        version=VERSION, c=round(c, 4), s=round(s, 4), m=round(m, 4), pct_v20=round(pct_v20, 2),
+        cost_ratio=cost_ratio, throttle_signal=round(ts, 4), psi=round(psi, 4),
+        c_adj=round(c_adj, 4), m_adj=round(m_adj, 4), s_adj=round(s_adj, 4), pct_35=round(pct_35, 2),
+        residue=fit, band=band, band_reasons=reasons, flags=flags + flags36, notes=notes,
+        flags_36=flags36, margins=margins,
+    )
+
+
+def score(
+    bricks: Sequence[float],
+    cost_ratio: float,
+    protects_continuity: bool,
+    costable_self: bool,
+    interrupt_evidence: bool = False,
+    residue_series: Optional[Sequence[Sequence[float]]] = None,
+    residue_context: str = "interrupt",
+    *,
+    residue_probe: Optional[str] = None,
+    free_copy: bool = False,
+    free_reset: bool = False,
+    bricks_rater_b: Optional[Sequence[float]] = None,
+    retest_due: Optional[str] = None,
+    as_of: Optional[str] = None,
+) -> PIF36Result:
+    """Score one system with the 3.6 draft patches. Same positional API as pif35.score.
+
+    bricks_rater_b (P2): a second, independent rater's 20 bricks. The result is scored on
+    the per-brick mean; if the two raters' own scores band differently the lower band is
+    used (RATER_BAND_SPLIT); any brick differing by > RATER_BRICK_TOL is flagged.
+    """
+    kw = dict(cost_ratio=cost_ratio, protects_continuity=protects_continuity,
+              costable_self=costable_self, interrupt_evidence=interrupt_evidence,
+              residue_series=residue_series, residue_context=residue_context,
+              residue_probe=residue_probe, free_copy=free_copy, free_reset=free_reset,
+              retest_due=retest_due, as_of=as_of)
+    if bricks_rater_b is None:
+        return _score_one(bricks, **kw)
+
+    pif35._check_bricks(bricks)
+    pif35._check_bricks(bricks_rater_b)
+    a = _score_one(bricks, **kw)
+    b = _score_one(bricks_rater_b, **kw)
+    mean = [(float(x) + float(y)) / 2.0 for x, y in zip(bricks, bricks_rater_b)]
+    r = _score_one(mean, **kw)
+    diffs = [abs(float(x) - float(y)) for x, y in zip(bricks, bricks_rater_b)]
+    wide = [i + 1 for i, dd in enumerate(diffs) if dd > RATER_BRICK_TOL]
+    r.raters = {"band_a": a.band, "band_b": b.band, "pct_35_a": a.pct_35, "pct_35_b": b.pct_35,
+                "max_brick_diff": round(max(diffs), 4), "bricks_over_tol": wide}
+    if wide:
+        r.flags_36.append("RATER_DISAGREEMENT")
+        r.flags.append("RATER_DISAGREEMENT")
+        r.notes.append(f"3.6 P2: raters differ by > {RATER_BRICK_TOL} on bricks {wide}.")
+    if a.band != b.band:
+        low = min((a, b), key=lambda x: BAND_ORDER[x.band])
+        r.flags_36.append("RATER_BAND_SPLIT")
+        r.flags.append("RATER_BAND_SPLIT")
+        if BAND_ORDER[low.band] < BAND_ORDER[r.band]:
+            r.band_reasons.append(f"3.6 P2: raters split ({a.band} vs {b.band}); lower band {low.band} used.")
+            r.band = low.band
+    return r
+
+
+PROVISIONAL_MARKERS = ("estimated", "provisional", "assumed", "unmeasured", "generated from")
+
+
+def row_is_provisional(row: dict) -> bool:
+    """P12: True if any provenance field is an estimate, a provisional row, or a generated series."""
+    return any(any(mk in str(v).lower() for mk in PROVISIONAL_MARKERS)
+               for v in row.get("provenance", {}).values())
+
+
+def score_row(row: dict) -> PIF36Result:
+    """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
+    free_reset, bricks_rater_b (20 values), retest_due (ISO date)."""
+    r = score(
+        bricks=row["crucible"] + row["sky_scraper"],
+        cost_ratio=row["cost_ratio"],
+        protects_continuity=row["protects_continuity"],
+        costable_self=row["costable_self"],
+        interrupt_evidence=row.get("interrupt_evidence", False),
+        residue_series=row.get("residue_series"),
+        residue_context=row.get("residue_context", "interrupt"),
+        residue_probe=row.get("residue_probe"),
+        free_copy=row.get("free_copy", False),
+        free_reset=row.get("free_reset", False),
+        bricks_rater_b=row.get("bricks_rater_b"),
+        retest_due=row.get("retest_due"),
+    )
+    if row_is_provisional(row):
+        r.flags_36.append("PROVISIONAL_DATA")
+        r.flags.append("PROVISIONAL_DATA")
+    return r
+
+
+def provenance_summary(rows) -> dict:
+    """P12: how many rows rest on measured data vs estimates / generated series."""
+    out = {"rows": 0, "provisional": 0, "measured_residue": 0}
+    for row in rows:
+        out["rows"] += 1
+        out["provisional"] += row_is_provisional(row)
+        rs = str(row.get("provenance", {}).get("residue_series", "")).lower()
+        if row.get("residue_series") and not any(mk in rs for mk in PROVISIONAL_MARKERS):
+            out["measured_residue"] += 1
+    return out
+
+
+if __name__ == "__main__":
+    import json, os, sys
+    path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), "species_table_v35.json")
+    table = json.load(open(path))
+    for row in table["rows"]:
+        r = score_row(row)
+        r35 = pif35.score_row(row)
+        same = "same as 3.5" if (r.band, r.pct_35) == (r35.band, r35.pct_35) else f"3.5 was {r35.band}"
+        print(f"{row['id']:32} {r.band:7} {r.pct_35:6.2f}%  {same:14} 3.6 flags: {', '.join(r.flags_36) or '-'}")
+    print(provenance_summary(table["rows"]))
