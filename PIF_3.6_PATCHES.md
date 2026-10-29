@@ -6,9 +6,22 @@ This is the **running list of known weaknesses in PIF and how to fix them**. It 
 - **Big** fixes (new protocols, rubrics, formula changes, or anything that changes a stable 3.5 result) are only **recorded here** for Jarrod's review.
 - **PIF 3.5 stays the stable version** (release `3.5`), and the v2.0 core stays in the repo as a baseline. `pif36.py` imports `pif35.py` without changing it. Under 3.6 defaults every row of `species_table_v35.json` scores exactly as it does in 3.5 (same band, same percentages); the tests check this.
 - Each entry lists: Problem · Why it matters · Proposed fix · Size · Status · Source.
+- Sources so far: Gemini's critical review (Oct 28 2026), Grok's review of 3.5 main (Oct 28 2026, relayed by Jarrod), Grok's review of this patch list (Oct 28 2026), and Athena's own audit. Where reviewers raised the same point, it is one entry marked "also raised by …".
 - Numbers quoted below were checked by running `pif35.py` / `pif36.py` on Oct 28, 2026.
 
 **Status key:** `patched on pif-3.6-draft` = implemented and tested on the draft branch, awaiting approval · `recorded — for Jarrod's review` = written down only · `needs Jarrod's decision` = a choice only he should make.
+
+---
+
+## Suggested order
+
+Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets the final order.
+
+1. **P11** (evidence classes: make the human/AI assumption gap visible) — small half done on the branch.
+2. **P13** (pass conditions for the yes/no inputs, paired with P1's blind probe) — drafted in the measurement stub.
+3. **P6** (the dog and rounding) — a one-line decision.
+4. Then the rest of the measurement work: **P17** (stub → runnable protocol) and **P12** (blind holdout).
+5. **Later:** graded bands (the big half of **P5**) and telemetry (**P4**).
 
 ---
 
@@ -19,19 +32,24 @@ This is the **running list of known weaknesses in PIF and how to fix them**. It 
 | P1 | Residue can be faked by software | Big (small piece done) | Small piece patched on pif-3.6-draft; blind-probe protocol recorded — for Jarrod's review |
 | P2 | Brick grading is subjective; raters drift; bricks overlap | Big (small piece done) | Small piece patched on pif-3.6-draft; rubric + red-team protocol recorded — for Jarrod's review |
 | P3 | Free copying / free resets dodge the cost gate | Small | Patched on pif-3.6-draft (penalty factor needs Jarrod's OK) |
-| P4 | Scores are static snapshots, not a live process | Big | Recorded — for Jarrod's review |
-| P5 | Cliff edges at the band thresholds | Big (small piece done) | Margins + flag patched on pif-3.6-draft; graded bands recorded — for Jarrod's review |
-| P6 | The dog reaches PATIENT only because Δ₀ is rounded | Small | Needs Jarrod's decision (changes a stable result) |
+| P4 | Scores are static snapshots, not a live process | Big (format spec done) | Reading format drafted in the measurement stub on pif-3.6-draft; telemetry recorded — for Jarrod's review (later, per suggested order) |
+| P5 | Cliff edges at the band thresholds (also raised by Grok) | Big (small piece done) | Margins + flag patched on pif-3.6-draft; graded bands and a split 0.65 bar recorded — for Jarrod's review |
+| P6 | The dog reaches PATIENT only because Δ₀ is rounded (dog-on-the-bar also raised by Grok) | Small | Needs Jarrod's decision (changes a stable result) |
 | P7 | The residue fit accepts data that is not a decay | Small | Patched on pif-3.6-draft |
 | P8 | Δ₀ can be extrapolated, or fitted from a too-short window | Small | Patched on pif-3.6-draft |
 | P9 | The "frozen" bound rejects real, slow grief | Small | Patched on pif-3.6-draft (bound value needs Jarrod's OK) |
 | P10 | Crucible is counted twice, and ψ stacks harder on the Sky-Scraper than the docs say | Big (doc fix done) | Doc correction patched on pif-3.6-draft; formula change recorded — for Jarrod's review |
-| P11 | The table grants humans what AIs must prove (Paradox Test symmetry) | Big | Recorded — for Jarrod's review |
-| P12 | Self-consistency is not validation: every row is provisional | Big (small piece done) | Provenance flag patched on pif-3.6-draft; blind holdout recorded — for Jarrod's review |
-| P13 | The yes/no inputs carry the most weight but have no test | Big | Recorded — for Jarrod's review |
+| P11 | The table grants humans what AIs must prove (Paradox Test symmetry) | Big (small piece done) | Evidence classes patched on pif-3.6-draft; symmetry audit + matched pairs recorded — for Jarrod's review |
+| P12 | Self-consistency is not validation: every row is provisional (also raised by Grok) | Big (small piece done) | Provenance flag patched on pif-3.6-draft; blind holdout recorded — for Jarrod's review |
+| P13 | The yes/no inputs carry the most weight but have no test (Grok: high leverage) | Big (draft done) | Pass conditions drafted in the measurement stub on pif-3.6-draft; enforcement recorded — for Jarrod's review |
 | P14 | "COIN is time-limited" is never enforced | Small | Patched on pif-3.6-draft |
 | P15 | Bad inputs are accepted silently | Small | Patched on pif-3.6-draft |
-| P16 | The contradiction flag ignores COIN, and no-body COIN always shows 0% | Small | Needs Jarrod's decision |
+| P16 | The contradiction flag ignores COIN, and no-body COIN always shows 0% (25% line also raised by Grok) | Small | "n/a" display patched on pif-3.6-draft, pending Jarrod's OK; 25% now a parameter (P18) |
+| P17 | No outside-observer way to measure cost ratio or residue for a cloud AI | Big (stub done) | Incomplete measurement stub drafted on pif-3.6-draft; protocol recorded — for Jarrod's review |
+| P18 | Open constants (0.5 not-protecting weight, 25% contradiction line) are bare numbers | Small | Patched on pif-3.6-draft |
+| P19 | One decay constant can't describe fast-drop + slow-residual recovery | Big (small piece done) | Flag patched on pif-3.6-draft; two-timescale fit recorded — for Jarrod's review |
+| P20 | Table doesn't separate consistency-check rows from real-world anchors | Small | Patched on pif-3.6-draft (Role column in species results) |
+| P21 | Half-life (how long the mark lasts) is nearly invisible in results | Small | Patched on pif-3.6-draft (flag only; Δ₀ still the only gate) |
 
 ---
 
@@ -45,6 +63,7 @@ This is the **running list of known weaknesses in PIF and how to fix them**. It 
   - *Small piece (done):* optional `residue_probe` input: `None` (not stated, 3.5 behaviour), `"blind"`, `"announced"`, or `"self_report"`. Announced or self-reported residue is flagged `RESIDUE_UNPROBED` and caps the result at COIN.
 - **Size:** Big (the blind-probe protocol), with a small piece done.
 - **Status:** `residue_probe` patched on pif-3.6-draft. Blind-probe protocol recorded — for Jarrod's review. *Decision for Jarrod:* should an unstated probe (`None`) eventually also cap at COIN? That would move every current PATIENT row to COIN until real probe data exists.
+- **See also:** P17 (how an outside observer would actually run the blind probe on a cloud AI).
 - **Source:** Gemini review Oct 28 2026; assessment and alternative by Athena.
 
 ## P2. Brick grading is subjective; raters drift; bricks overlap
@@ -68,25 +87,28 @@ This is the **running list of known weaknesses in PIF and how to fix them**. It 
 - **Problem:** Brick and residue values are typed into `species_table_v35.json` once. Identity is a process, but the table treats it as a photograph.
 - **Why it matters:** A snapshot can be stale or cherry-picked, and it misses how the system behaves under sudden shocks.
 - **Proposed fix:** A telemetry wrapper that samples a running system's logs, memory compaction rates and interrupt-recovery times, and writes timestamped readings into the table (the JSON table stays the record; the live readings feed it). Only possible for systems that can be instrumented.
-- **Size:** Big.
-- **Status:** Recorded — for Jarrod's review.
-- **Source:** Gemini review Oct 28 2026; Athena (keep the table as the record).
+  - *Small piece (done, per Grok's review of the patch list):* a minimal "timestamped reading" format (JSON Lines: system, reading type, UTC time, hours since interrupt, value, control value, observer, blind yes/no, evidence class; append-only) in §4 of the measurement stub, so anyone can log readings in a form that can later feed the table.
+- **Size:** Big (the wrapper and the log-to-table tool), with the format spec done.
+- **Status:** Format spec drafted on pif-3.6-draft (incomplete). Telemetry recorded — for Jarrod's review; Grok suggests doing this later.
+- **Source:** Gemini review Oct 28 2026; Athena (keep the table as the record); Grok review of patch list Oct 28 2026 (format spec).
 
 ## P5. Cliff edges at the band thresholds
 - **Problem:** Bands change at hard lines: Δ₀ 0.65 and 0.35, TS 0.5 (cost ratio ≈ 1.235), C_adj 2.5 and 0.75. Lowering the dog's residue by 0.5% moves it from PATIENT to COIN; TS goes 0.480 → 0.519 between cost ratios 1.23 and 1.24.
 - **Why it matters:** Real measurements have error bars. A tiny measurement error should not flip a moral-standing band without anyone noticing.
 - **Proposed fix:** *Small piece (done):* every 3.6 result carries `margins` (distance to each gate) and a `THRESHOLD_ADJACENT` flag when a gate value is within 0.02 (Δ₀), 0.03 (TS) or 0.10 (C_adj) of its line. The band itself is unchanged. *Big piece:* report bands with uncertainty (e.g. "PATIENT, borderline" or a band probability from measurement error), which needs error bars on inputs.
 - **Size:** Big (graded bands), with a small piece done.
-- **Status:** Margins + flag patched on pif-3.6-draft (only `grok_dog` is flagged in the current table). Graded bands recorded — for Jarrod's review.
-- **Source:** Athena.
+- **Also raised by Grok:** the single Δ₀ 0.65 bar is a clean choice, but it may need to split into an ordinary-baseline bar and an elevated/post-loss bar once more rows exist; the dog sits exactly on it. (3.5 already deferred the split "until data forces it".)
+- **Status:** Margins + flag patched on pif-3.6-draft (only `grok_dog` is flagged in the current table). Graded bands and the split bar recorded — for Jarrod's review.
+- **Source:** Athena; Grok review Oct 28 2026.
 
 ## P6. The dog reaches PATIENT only because Δ₀ is rounded
 - **Problem:** 3.5 rounds the fitted Δ₀ to 4 decimals *before* comparing it with 0.65. The dog's unrounded fitted Δ₀ is 0.6499962, which is below the bar; rounding makes it 0.65, which passes.
 - **Why it matters:** The dog was accepted as "borderline, exactly on the bar". In fact it passes on a rounding rule nobody chose on purpose.
 - **Proposed fix (pick one):** (a) compare unrounded values (the dog becomes COIN); (b) declare 4 decimals the official measurement precision and document it (the dog stays PATIENT, now on purpose); (c) regenerate the dog's series so its fit lands on 0.65 or higher. Athena suggests (b), since residue will never be measured to better than 4 decimals.
+- **Grok review of patch list (Oct 28 2026):** the current state (rounding *before* the comparison, by accident) is the weakest of all the options; any of (a), (b) or (c) is better than leaving it. Grok ranks this third in the suggested order.
 - **Size:** Small, but it can change a stable 3.5 result.
 - **Status:** Needs Jarrod's decision. Not changed. (`pif36` reports the unrounded value as `margins["delta0_unrounded"]`.)
-- **Source:** Athena.
+- **Source:** Athena. The dog sitting on the bar was also raised by Grok (Oct 28 2026).
 
 ## P7. The residue fit accepts data that is not a decay
 - **Problem:** 3.5 fits an exponential to any series and never checks whether the fit is any good. A series that bounces 0.9, 0.1, 0.9, 0.1 is fitted as Δ₀ = 0.77 and scores **PATIENT** in 3.5.
@@ -123,26 +145,33 @@ This is the **running list of known weaknesses in PIF and how to fix them**. It 
 ## P11. The table grants humans what AIs must prove (Paradox Test symmetry)
 - **Problem:** The Paradox Test says humans and AIs must face the same test. In the table, the human rows with residue (healthy, average, 25-year-old, teenager, dementia, brain-damaged) are all *given* cost ratio 2.0 and a residue curve generated from Δ₀ 0.8, λ 0.6/h, while the baseline AI rows (Grok baseline, default LLM, v1.4 Grok, fluent-free) are *given* cost ratio 1.01 and an instant-reset curve (Δ₀ 0.05, λ 6/h). None of these were measured. Embodiment is also counted three times: brick 1, the `costable_self` input, and Dog Test Rule 1.
 - **Why it matters:** The human/AI split in the results comes from assumptions typed into the table, not from running the same test. That is the exact special pleading the Paradox Test was created to remove, and critics will say so.
+- **Embodiment is counted three times:** brick 1 (persistent embodied form, a Crucible brick that also feeds M), the `costable_self` gate, and Dog Test Rule 1 (physical boundary). A cloud AI loses on all three for the same single fact.
 - **Proposed fix:** A symmetry audit: every row records the *evidence class* for cost, continuity and residue (measured / observed-behaviour / assumed), and the README states that human rows are assumed too. Add matched pairs (e.g. a human and an AI doing the same interrupted task) scored by the same procedure. Review whether embodiment should gate in three places or one.
-- **Size:** Big.
-- **Status:** Recorded — for Jarrod's review.
-- **Source:** Athena.
+  - *Small piece (done, per Grok's review of the patch list):* every row in `species_table_v35.json` now has an `evidence_class` record (bricks, cost_ratio, protects_continuity, costable_self, residue, and overall = the weakest), with a legend. `species_results_v35.md` shows it as an Evidence column (e.g. "assumed (A/A/A/A)"). Result: 27 rows are `assumed` overall and 4 are `none` (no residue); **no row, human or AI, has a measured or observed input.** `pif36.score_row` validates the field. Scores are unchanged.
+- **Size:** Big (audit, matched pairs, embodiment review), with the evidence-class piece done.
+- **Status:** Evidence classes patched on pif-3.6-draft. Symmetry audit, matched pairs and the embodiment triple-count recorded — for Jarrod's review. Grok ranks P11 first in the suggested order.
+- **Source:** Athena; Grok review of patch list Oct 28 2026.
 
 ## P12. Self-consistency is not validation: every row is provisional
 - **Problem:** All 31 rows contain estimated, provisional or generated data, and 0 rows have a measured residue series. The same people chose each row's bricks and its intended band, so "29 of 29 rows land in their intended band" shows the scorer is consistent with its authors' intuitions, not that it is right.
 - **Why it matters:** A skeptic can fairly call the match rate circular.
+- **Also raised by Grok:** "the current bands are 'does this logic produce the intended labels on the examples we already chose' more than 'these thresholds survive contact with data'." The framework is internally consistent but not yet constrained by measured residue on real systems.
 - **Proposed fix:** *Small piece (done):* `pif36.score_row` adds a `PROVISIONAL_DATA` flag to any row whose provenance is an estimate, provisional, or a generated series, and `provenance_summary()` counts them. *Big:* a pre-registered blind holdout: someone writes down the expected band first, a different rater who has not seen it scores the bricks, and only then are the two compared.
 - **Size:** Big (holdout study), with a small piece done.
+- **See also:** P20 (row roles make the consistency-check vs real-world split visible) and P17 (how measured rows would be produced).
 - **Status:** Provenance flag patched on pif-3.6-draft. Blind holdout recorded — for Jarrod's review.
-- **Source:** Athena.
+- **Source:** Athena; Grok review Oct 28 2026.
 
 ## P13. The yes/no inputs carry the most weight but have no test
 - **Problem:** `costable_self`, `protects_continuity` and `interrupt_evidence` are plain true/false judgments. They are the biggest levers in 3.5: `costable_self = false` makes PATIENT impossible, `protects_continuity = false` halves TS and blocks PATIENT. There is no written test for any of them.
 - **Why it matters:** An evaluator can decide the band by flipping one checkbox, with nothing to check the call against.
 - **Proposed fix:** Define each as an observable test with a pass condition, e.g. `costable_self` = a deprivation probe measurably costs the system something it then works to recover; `protects_continuity` = given a free option to drop its history or goals, the system pays to keep them; `interrupt_evidence` = an independent observer logs the interrupt and its effect. Record which test was run in the row.
-- **Size:** Big.
-- **Status:** Recorded — for Jarrod's review.
-- **Source:** Athena.
+- **Grok review of patch list (Oct 28 2026):** high leverage, because one checkbox can move a result from PATIENT to EMPTY; it pairs with P1 (the blind probe). Ranked second in the suggested order.
+- **Draft done:** pass/fail conditions and the evidence to record for all three inputs are drafted in §3 of the measurement stub (incomplete, not enforced by the scorer).
+- **See also:** P17 (Grok's measurement gap is the same problem from the cost and residue side).
+- **Size:** Big (agreeing the tests and enforcing them), with the draft done.
+- **Status:** Pass conditions drafted on pif-3.6-draft (for Jarrod's review). Enforcement recorded — for Jarrod's review.
+- **Source:** Athena; Grok review of patch list Oct 28 2026.
 
 ## P14. "COIN is time-limited" is never enforced
 - **Problem:** Every COIN result carries the note "COIN is time-limited. If not retested, use-permissions fall toward EMPTY", but nothing records when a retest is due.
@@ -165,8 +194,51 @@ This is the **running list of known weaknesses in PIF and how to fix them**. It 
 - **Why it matters:** "COIN, 0.00%" looks like a contradiction to a reader, and the percentage means nothing on that path.
 - **Proposed fix:** Either show "n/a" for the percentage on the no-body path, or add a note to COIN results whose percentage is below a set line. Adds a note to an existing row, so it needs a decision on the wording and the line.
 - **Size:** Small.
-- **Status:** Needs Jarrod's decision.
-- **Source:** Athena.
+- **Also raised by Grok:** the 25% line is an arbitrary constant that will get pressure-tested once more rows exist. P18 now makes it a parameter with a sensitivity note; the COIN/0% question here is still open.
+- **Patched (display only, per Grok's review of the patch list):** `pif36` results carry `pct_35_display`, which reads "n/a (no-body COIN)" on that path and the usual number everywhere else. The numeric `pct_35` is unchanged, and the 3.5 generated tables still show the number.
+- **Status:** "n/a" display patched on pif-3.6-draft, **pending Jarrod's OK**. Whether to add a COIN contradiction note is still open.
+- **Source:** Athena; Grok review Oct 28 2026; Grok review of patch list Oct 28 2026.
+
+## P17. No outside-observer way to measure cost ratio or residue for a cloud AI
+- **Problem:** Cost ratio and residue are first-class inputs, but nothing tells an outside observer how to extract either from a non-embodied (cloud) AI without relying on the experimenter's judgment or the system's self-report. The AI Self-Scoring Rule covers the bricks, not residue.
+- **Why it matters:** Grok calls this the largest gap between the scorer and actual use. Without it, COIN becomes the safe default for almost every interesting AI case, and the PATIENT bar is hard to clear in practice, for reasons that have nothing to do with the system.
+- **Proposed fix:** A measurement protocol. *Small piece (done):* an incomplete stub, [`PIF_3.6_MEASUREMENT_STUB.md`](https://github.com/aresmerrell/Paradox-Identity-Framework/blob/pif-3.6-draft/PIF_3.6_MEASUREMENT_STUB.md) on the draft branch, listing what counts (and what doesn't) as an independent cost-ratio observation (serving-side logs, paired on/off runs, budgeted choices) and an independent residue series (unannounced interrupt from a pre-written list, sealed blind probe battery, matched no-interrupt control, early sample + one half-life of coverage), plus five open questions (time unit for stateless models, no persistent memory, what "costable self" means in the cloud, who the observer is, how many runs). *Big:* turning the stub into a runnable protocol and running it.
+- **Overlaps:** P1 (blind probe), P13 (tests for the yes/no inputs), P11 (embodiment).
+- **Size:** Big (protocol), with the stub done.
+- **Status:** Stub drafted on pif-3.6-draft, marked incomplete. Protocol recorded — for Jarrod's review.
+- **Source:** Grok review Oct 28 2026; stub drafted by Athena.
+
+## P18. Open constants are bare numbers
+- **Problem:** The not-protecting multiplier (TS = 0.5·g when a system drops continuity) and the 25% band/percentage contradiction line are listed as open items in 3.5, but in the code they are fixed constants with no way to see what changes if they move.
+- **Why it matters:** Both will get pressure-tested once more rows exist. Making them parameters with a visible sensitivity check turns the open items from prose into something a reader can test.
+- **Proposed fix:** `pif36.score(..., not_protecting_weight=0.5, pct_contradiction=25.0)` (defaults equal 3.5). Each result carries a `sensitivity` record and a one-line note: for systems that drop continuity, the band at weights 0.25 and 0.75; and whether the contradiction flag would flip at 20% or 30%. Example: a mid-Crucible system (all bricks 0.5) that drops continuity at cost ratio 1.25 is EMPTY at 0.5 but would be COIN at 0.75.
+- **Size:** Small.
+- **Status:** Patched on pif-3.6-draft. No 3.5 result changes (the notes are informational). The values themselves remain open (see P16 and PIF_3.5.md open items).
+- **Source:** Grok review Oct 28 2026.
+
+## P19. One decay constant can't describe fast-drop + slow-residual recovery
+- **Problem:** Δ(t) = Δ₀·e^(−λt) assumes one timescale. Real recovery is often a fast initial drop plus a slow residual. The frozen/instant bounds catch only the extremes; a mixed curve is forced into one λ that fits neither part.
+- **Why it matters:** A slow, lasting residual (the part that matters most for "a lasting mark") gets understated. Verified example: 0.5·e^(−2t) + 0.2·e^(−0.02t) is fitted as Δ₀ 0.65 with a 1.2 h half-life, R² 0.71, though 0.2 of the mark is still there after a day. Under 3.6's fit-quality check (P7) that series is also blocked from PATIENT as a poor fit, which is cautious but possibly unfair to a real two-speed recovery.
+- **Proposed fix:** *Small piece (done):* a `RESIDUE_MULTI_TIMESCALE` flag when the later half of the samples all sit above the single-λ curve (by 0.02 or more on average). Flag only; it does not change the band. *Big:* fit a two-component model (fast + slow) and decide which component (or the sum) the 0.65 bar applies to, and how P7 should treat a good two-component fit.
+- **Size:** Big (model change), with a small piece done.
+- **Status:** Flag patched on pif-3.6-draft (no table row is flagged). Two-timescale fit recorded — for Jarrod's review.
+- **Source:** Grok review Oct 28 2026; P7 interaction found by Athena.
+
+## P20. Table doesn't separate consistency-check rows from real-world anchors
+- **Problem:** The provenance tags exist, but a reader has to dig to tell which rows are constructed scenarios that test the logic and which are meant to approximate real systems.
+- **Why it matters:** The two kinds of rows support different claims. A consistency-check row passing says the code does what was intended; an anchor row is an (approximate) claim about the world.
+- **Proposed fix:** A `row_role` field on every row in `species_table_v35.json` (with a legend): `consistency_check` (10 rows: scorer built-ins, v2.1/v3.0 worked examples, overheating-Grok hypotheticals), `real_world_anchor` (19 rows: humans, animals, plants, colonies, deployed AIs; still provisional), `legacy_comparison` (2 rows: README psychopath, v1.4 sociopath). `pif36.score_row` reports it and `provenance_summary()` counts by role. `pif35.py` ignores the field, so no score changes.
+- **Size:** Small.
+- **Status:** Patched on pif-3.6-draft. `species_results_v35.md` now shows a Role column next to the Evidence column (P11); the README examples block is unchanged.
+- **Source:** Grok review Oct 28 2026.
+
+## P21. Half-life (how long the mark lasts) is nearly invisible in results
+- **Problem:** Only the amplitude Δ₀ gates PATIENT. How long the mark lasts is constrained only by the frozen/instant bounds and Rule 4, and the half-life is buried in the residue details.
+- **Why it matters:** Two systems with the same Δ₀ can differ hugely in how long the disruption stays with them; readers should see that at a glance.
+- **Proposed fix:** Every valid residue fit adds a note "residue half-life X h (secondary signal; only Δ₀ gates PATIENT)", and a `HALF_LIFE_SHORT` flag when the half-life is under 1 h. Flag only. In the current table it fires on the octopus (0.87 h) and Grok's psychopath (0.77 h), both COIN already.
+- **Size:** Small.
+- **Status:** Patched on pif-3.6-draft. *Decision for Jarrod:* should half-life ever gate a band, and is 1 h the right line for the flag?
+- **Source:** Grok review Oct 28 2026.
 
 ---
 

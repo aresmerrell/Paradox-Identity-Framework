@@ -175,5 +175,113 @@ class TestP15Inputs(unittest.TestCase):
         self.assertIn("RESIDUE_CLAMPED", r.flags)
 
 
+class TestP18OpenConstants(unittest.TestCase):
+    def test_defaults_equal_35_constants(self):
+        self.assertEqual(pif36.NOT_PROTECTING_WEIGHT, pif35.NOT_PROTECTING_WEIGHT)
+        r = pif36.score(FULL, 1.6, False, True, True, GOOD)
+        self.assertEqual(r.throttle_signal, round(pif35.throttle_signal(1.6, False), 4))
+
+    def test_weight_parameter_and_sensitivity_note(self):
+        b = [0.5] * 20
+        r = pif36.score(b, 1.25, False, True, True)
+        self.assertEqual(r.band, "EMPTY")
+        self.assertEqual(r.sensitivity["not_protecting_weight"]["alternatives"][0.75], "COIN")
+        self.assertTrue(any("band would be COIN at 0.75" in n for n in r.notes))
+        self.assertEqual(pif36.score(b, 1.25, False, True, True, not_protecting_weight=0.75).band, "COIN")
+        with self.assertRaises(ValueError):
+            pif36.score(b, 1.25, False, True, not_protecting_weight=1.5)
+
+    def test_contradiction_threshold_parameter(self):
+        baby = next(r for r in ROWS if r["id"] == "grok_baby")          # PATIENT at 30.46%
+        args = dict(bricks=baby["crucible"] + baby["sky_scraper"], cost_ratio=baby["cost_ratio"],
+                    protects_continuity=True, costable_self=True, interrupt_evidence=baby.get("interrupt_evidence", False),
+                    residue_series=baby["residue_series"])
+        r = pif36.score(**args)
+        self.assertNotIn("BAND_PCT_CONTRADICTION", r.flags)
+        self.assertEqual(r.sensitivity["pct_contradiction"]["alternatives"], {20.0: False, 30.0: False})
+        r35 = pif36.score(**args, pct_contradiction=35.0)              # 30.46% PATIENT < 35% -> flagged
+        self.assertIn("BAND_PCT_CONTRADICTION", r35.flags)
+        self.assertTrue(any("would be off at 20.0%/30.0%" in n for n in r35.notes))
+
+
+class TestP19MultiTimescale(unittest.TestCase):
+    def test_fast_plus_slow_flagged(self):
+        s = [[t, round(0.5 * math.exp(-2 * t) + 0.2 * math.exp(-0.02 * t), 4)] for t in (0, 1, 2, 4, 8, 24, 48)]
+        r = pif36.score(FULL, 2.0, True, True, True, s)
+        self.assertIn("RESIDUE_MULTI_TIMESCALE", r.flags)
+
+    def test_clean_single_decay_not_flagged(self):
+        for row in ROWS:
+            with self.subTest(row=row["id"]):
+                self.assertNotIn("RESIDUE_MULTI_TIMESCALE", pif36.score_row(row).flags)
+
+
+class TestP20RowRoles(unittest.TestCase):
+    def test_every_row_has_a_valid_role(self):
+        for row in ROWS:
+            with self.subTest(row=row["id"]):
+                self.assertIn(row.get("row_role"), pif36.ROW_ROLES)
+                self.assertEqual(pif36.score_row(row).row_role, row["row_role"])
+        legacy = {r["id"] for r in ROWS if r["row_role"] == "legacy_comparison"}
+        self.assertEqual(legacy, {r["id"] for r in ROWS if r["intended_band"] == "legacy/unmeasured"})
+
+    def test_bad_role_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score_row({**ROWS[0], "row_role": "vibes"})
+
+
+class TestP21HalfLife(unittest.TestCase):
+    def test_half_life_note_and_short_flag(self):
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD)        # lambda 0.6/h -> 1.155 h
+        self.assertTrue(any("half-life" in n and "secondary" in n for n in r.notes))
+        self.assertNotIn("HALF_LIFE_SHORT", r.flags)
+        fast = pif35.residue_series_from_curve(0.8, 1.5, (0, 0.25, 0.5, 1, 2, 4))
+        r = pif36.score(FULL, 2.0, True, True, True, fast)
+        self.assertIn("HALF_LIFE_SHORT", r.flags)
+        self.assertEqual(r.band, "PATIENT")                          # flag only; Delta_0 alone gates
+
+
+class TestP11EvidenceClass(unittest.TestCase):
+    def test_every_row_has_valid_evidence_class(self):
+        for row in ROWS:
+            with self.subTest(row=row["id"]):
+                ev = row["evidence_class"]
+                for k in pif36.EVIDENCE_KEYS:
+                    self.assertIn(ev[k], pif36.EVIDENCE_CLASSES)
+                self.assertEqual(pif36.score_row(row).evidence_class, ev)
+
+    def test_human_and_ai_rows_held_to_same_key(self):
+        by_id = {r["id"]: r for r in ROWS}
+        human, ai = by_id["readme_healthy_human"], by_id["readme_grok_baseline"]
+        self.assertEqual(human["evidence_class"]["cost_ratio"], "assumed")
+        self.assertEqual(human["evidence_class"]["residue"], ai["evidence_class"]["residue"])
+        self.assertNotIn("measured", {r["evidence_class"]["overall"] for r in ROWS})
+
+    def test_bad_or_inconsistent_class_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score_row({**ROWS[0], "evidence_class": {"bricks": "vibes"}})
+        with self.assertRaises(ValueError):
+            pif36.score_row({**ROWS[5], "evidence_class": {**ROWS[5]["evidence_class"], "overall": "measured"}})
+
+    def test_species_results_shows_evidence_column(self):
+        with open(os.path.join(ROOT, "species_results_v35.md"), encoding="utf-8") as f:
+            md = f.read()
+        self.assertIn("Evidence (bricks/cost/continuity/residue)", md)
+        self.assertIn("| real world anchor | assumed (A/A/A/A) |", md)
+
+
+class TestP16NoBodyDisplay(unittest.TestCase):
+    def test_no_body_coin_shows_na_number_unchanged(self):
+        row = next(r for r in ROWS if r["id"] == "v21_interrupt_messy_no_body")
+        r36, r35 = pif36.score_row(row), pif35.score_row(row)
+        self.assertEqual(r36.band, "COIN")
+        self.assertEqual(r36.pct_35_display, "n/a (no-body COIN)")
+        self.assertEqual(r36.pct_35, r35.pct_35)
+
+    def test_other_rows_show_number(self):
+        row = next(r for r in ROWS if r["id"] == "grok_dog")
+        self.assertEqual(pif36.score_row(row).pct_35_display, "39.81%")
+
+
 if __name__ == "__main__":
     unittest.main()

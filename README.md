@@ -43,6 +43,7 @@ PIF 3.5 puts all the earlier pieces into **one tool**:
 | [`PIF_3.5.md`](PIF_3.5.md) | Full 3.5 specification: formulas, thresholds, decisions and open items. |
 | [`tests/`](tests/) | One test run covering 3.5 and the older reference scorers. |
 | [`pif36.py`](pif36.py) | **3.6 draft (not approved).** Patches from [`PIF_3.6_PATCHES.md`](PIF_3.6_PATCHES.md) on top of `pif35.py`; 3.5 results are unchanged by default. |
+| [`PIF_3.6_MEASUREMENT_STUB.md`](PIF_3.6_MEASUREMENT_STUB.md) | **3.6 draft, incomplete.** What would count as an independent cost-ratio and residue observation for a cloud AI. |
 
 **How 3.5 scores a system:**
 
