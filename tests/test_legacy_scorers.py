@@ -1,11 +1,12 @@
-"""Sanity tests for the PIF reference scorers (stdlib unittest, no dependencies).
+"""Legacy reference scorer tests (v1.4, v2.0/v2.1, v3.0), part of the PIF 3.5 suite.
 
-Run from the repo root:
+Run the whole suite from the repo root:
     python3 -m unittest discover -s tests -v
 
-These tests pin the documented behavior of each scorer (README worked examples
-and each script's own built-in examples) so doc/code drift gets caught early.
-They do not change or endorse any scoring math.
+PIF 3.5 (pif35.py) is the current scorer. The older scorers are kept unchanged so
+historical results stay reproducible; these tests pin their documented behavior
+(including the two known v3.0 bugs). test_v30_fixed_in_pif35.py checks that 3.5
+fixes those bugs. They do not change or endorse any scoring math.
 """
 
 import importlib.util

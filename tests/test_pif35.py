@@ -21,7 +21,8 @@ sys.path.insert(0, ROOT)
 
 import pif35  # noqa: E402
 
-TABLE = json.load(open(os.path.join(ROOT, "species_table_v35.json")))
+with open(os.path.join(ROOT, "species_table_v35.json"), encoding="utf-8") as _f:
+    TABLE = json.load(_f)
 COSTS = [round(1.0 + i * 0.01, 2) for i in range(101)]          # 1.00 .. 2.00
 LAMBDAS = [0.0, 1e-5, 5e-4, 0.002, 0.01, 0.05, 0.2, 0.6, 0.9, 2.0, 4.0, 10.0, 1e3, 1e7]
 FULL = [1.0] * 20
