@@ -1,7 +1,7 @@
-# PIF 3.5 (DRAFT): one scorer, one table
+# PIF 3.5: one scorer, one table
 
-**Status:** Draft on local branch `pif-3.5-draft`. Not merged, not adopted. Needs Jarrod's approval.
-**v2.0 remains the stable reference.** v2.0, v2.1 and v3.0 files are untouched.
+**Status:** Current. Approved by Jarrod and merged to `main` in [PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2) (Oct 2026).
+**The v2.0 core formula is unchanged inside 3.5.** The older v2.0, v2.1 and v3.0 files are kept for history and reproducibility.
 **Files:** `pif35.py` (scorer), `species_table_v35.json` (data), `gen_species_table.py` → `species_results_v35.md` (generated results), `tests/test_pif35.py`.
 
 ## Brick numbering (canonical for 3.5)
@@ -82,7 +82,7 @@ v2.0 README order: **Crucible = bricks 1–5** (1 embodiment, 2 minimal self, 3 
 - They stay as legacy comparison cases until someone supplies a real deprivation-probe series. Grok's behavioural-residue psychopath row is the measured-style replacement.
 
 ## Known open items
-See the report in the PR description draft. The main ones:
+See the report in [PR #2](https://github.com/aresmerrell/Paradox-Identity-Framework/pull/2). The main ones:
 - **Δ₀ thresholds against Grok's rows.** The octopus (Δ₀ 0.55) and Grok's psychopath (Δ₀ 0.45) land in COIN, and Grok accepts both. The dog sits exactly on 0.65. C_adj ≥ 2.5 and Δ₀ ≥ 0.65 are kept for this iteration.
 - **Not-protecting case.** Is 0.5·g the right TS when a system drops its continuity?
 - **Contradiction threshold.** Is 25% the right threshold for the band and percentage contradiction flag?
@@ -91,4 +91,4 @@ See the report in the PR description draft. The main ones:
 - **Jarrod Gilmore (@AresMerrell):** framework author, Paradox Rule, v1–v3 design, final say.
 - **Grok:** v2.0 co-design, v3 cost gate and residue, critique of the inverted ThrottleSignal and single-point residue, and the provisional dog, baby, octopus and psychopath rows.
 - **Gemini:** v2.0 co-design, the Facade Penalty ψ, the residue decay model, and the Dog Test Protocol.
-- **Athena (Jarrod's assistant):** cross-version re-run and bug report, the 3.5 scorer, table, tests and this draft.
+- **Athena (Jarrod's assistant):** cross-version re-run and bug report, the 3.5 scorer, table, tests and this document.

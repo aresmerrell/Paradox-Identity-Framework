@@ -1,5 +1,5 @@
 {
- "version": "3.5-draft",
+ "version": "3.5",
  "brick_order": "v2.0 README: Crucible 1-5, Sky-Scraper 6-20 (v1.x numbering obsolete; v1 vectors renumbered)",
  "residue_units": "hours",
  "generated_note": "Residue series for rows marked 'generated' are sampled from the stated curve, not measured.",

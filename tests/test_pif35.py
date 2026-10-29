@@ -1,4 +1,4 @@
-"""Tests for the PIF 3.5 draft scorer (stdlib unittest).
+"""Tests for the PIF 3.5 scorer (stdlib unittest).
 
 Run from the repo root:
     python3 -m unittest discover -s tests -v

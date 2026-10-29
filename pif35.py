@@ -1,7 +1,7 @@
-"""PIF 3.5 (DRAFT) - one unified scorer.
+"""PIF 3.5 - one unified scorer (current version).
 
-Status: draft on branch `pif-3.5-draft`, pending Jarrod's approval.
-v2.0 stays the stable reference; v2.0/v2.1/v3.0 files are untouched.
+Status: approved by Jarrod and merged to main (PR #2, Oct 2026).
+The v2.0/v2.1/v3.0 files are kept unchanged for history and reproducibility.
 
 Core   : v2.0 layered model. 20 bricks in v2.0 README order
          (Crucible = bricks 1-5, Sky-Scraper = bricks 6-20), each 0.0-1.0.
@@ -9,7 +9,7 @@ Core   : v2.0 layered model. 20 bricks in v2.0 README order
 Layers : v3 cost gate (ThrottleSignal TS, facade penalty psi), interrupt /
          post-loss residue fitted from a time series in HOURS, and the
          EMPTY / COIN / PATIENT bands from v2.1, with the fixes agreed by
-         Athena + Grok (Oct 2026). See PIF_3.5_DRAFT.md.
+         Athena + Grok (Oct 2026). See PIF_3.5.md.
 
 Standard library only.
 """
@@ -20,7 +20,7 @@ import math
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional, Sequence, Tuple
 
-VERSION = "3.5-draft"
+VERSION = "3.5"
 
 # ---------------------------------------------------------------------------
 # Brick layout (canonical v2.0 README numbering)
