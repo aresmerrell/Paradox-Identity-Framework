@@ -283,5 +283,33 @@ class TestP16NoBodyDisplay(unittest.TestCase):
         self.assertEqual(pif36.score_row(row).pct_35_display, "39.81%")
 
 
+class TestP22InputBinding(unittest.TestCase):
+    ROW = next(r for r in ROWS if r["id"] == "grok_dog")
+
+    def test_no_metadata_no_flag(self):
+        self.assertNotIn("INPUTS_NOT_BOUND", pif36.score_row(self.ROW).flags_36)
+
+    def test_same_system_same_window_no_flag(self):
+        mo = {k: {"system": "rex", "version": "1", "date": "2026-10-01"} for k in ("bricks", "cost_ratio", "residue")}
+        mo["residue"]["date"] = "2026-10-20"
+        self.assertNotIn("INPUTS_NOT_BOUND", pif36.score_row({**self.ROW, "measured_on": mo}).flags_36)
+
+    def test_mixed_version_flagged_band_unchanged(self):
+        mo = {"bricks": {"system": "bot", "version": "4.1"}, "residue": {"system": "bot", "version": "4.2"}}
+        r = pif36.score_row({**self.ROW, "measured_on": mo})
+        self.assertIn("INPUTS_NOT_BOUND", r.flags_36)
+        self.assertEqual(r.band, pif35.score_row(self.ROW).band)
+
+    def test_mixed_system_and_wide_dates_flagged(self):
+        mo = {"bricks": {"system": "a", "date": "2026-01-01"}, "cost_ratio": {"system": "b", "date": "2026-06-01"}}
+        r = pif36.score_row({**self.ROW, "measured_on": mo})
+        self.assertIn("INPUTS_NOT_BOUND", r.flags)
+        self.assertTrue(any("different systems" in n and "days apart" in n for n in r.notes))
+
+    def test_bad_key_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score_row({**self.ROW, "measured_on": {"vibes": {"system": "a"}}})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,7 @@ from __future__ import annotations
 import datetime as _dt
 import math
 from dataclasses import asdict, dataclass, field
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 import pif35
 from pif35 import (  # re-export the stable pieces unchanged
@@ -68,6 +68,44 @@ ROW_ROLES = ("consistency_check", "real_world_anchor", "legacy_comparison")
 # --- P11: evidence class per input (weakest first) ----------------------------
 EVIDENCE_CLASSES = ("none", "assumed", "observed", "measured")
 EVIDENCE_KEYS = ("bricks", "cost_ratio", "protects_continuity", "costable_self", "residue")
+
+# --- P22: inputs bound to one system (flag only) ------------------------------
+# Optional row key "measured_on": {input: {"system": str, "version": str, "date": "YYYY-MM-DD"}}
+# for any of EVIDENCE_KEYS. Inputs taken from different systems/versions, or spread
+# over more than this many days, get INPUTS_NOT_BOUND. Never changes the band.
+BINDING_MAX_SPREAD_DAYS = 30
+
+
+def check_binding(measured_on) -> Tuple[List[str], List[str]]:
+    """P22: return (flags, notes) saying whether all inputs came from one system/version/window."""
+    if not measured_on:
+        return [], []
+    if not isinstance(measured_on, dict):
+        raise ValueError("measured_on must be a dict of input -> {system, version, date}")
+    systems, versions, dates = set(), set(), []
+    for k, rec in measured_on.items():
+        if k not in EVIDENCE_KEYS:
+            raise ValueError(f"measured_on key must be one of {EVIDENCE_KEYS}, got {k!r}")
+        if not isinstance(rec, dict):
+            raise ValueError(f"measured_on[{k!r}] must be a dict")
+        if rec.get("system") is not None:
+            systems.add(str(rec["system"]))
+        if rec.get("version") is not None:
+            versions.add(str(rec["version"]))
+        if rec.get("date") is not None:
+            dates.append(_dt.date.fromisoformat(str(rec["date"])))
+    problems = []
+    if len(systems) > 1:
+        problems.append("different systems (" + ", ".join(sorted(systems)) + ")")
+    if len(versions) > 1:
+        problems.append("different versions (" + ", ".join(sorted(versions)) + ")")
+    if dates and (max(dates) - min(dates)).days > BINDING_MAX_SPREAD_DAYS:
+        problems.append(f"measured {(max(dates) - min(dates)).days} days apart (> {BINDING_MAX_SPREAD_DAYS})")
+    if problems:
+        return ["INPUTS_NOT_BOUND"], ["3.6 P22: inputs were not all measured on the same system: "
+                                      + "; ".join(problems) + ". The score may mix two different systems."]
+    return [], []
+
 
 # --- P9: post-loss frozen bound -------------------------------------------------
 LAMBDA_FROZEN_MAX_POST_LOSS = 1e-4   # /h, half-life ~289 days (3.5 uses 1e-3 = ~29 days everywhere)
@@ -442,7 +480,7 @@ def row_is_provisional(row: dict) -> bool:
 
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
-    free_reset, bricks_rater_b (20 values), retest_due (ISO date)."""
+    free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -474,6 +512,10 @@ def score_row(row: dict) -> PIF36Result:
         if "overall" in ev and expected is not None and ev["overall"] != expected:
             raise ValueError(f"evidence_class overall must be the weakest input class ({expected}), got {ev['overall']!r}")
     r.evidence_class = ev
+    bflags, bnotes = check_binding(row.get("measured_on"))
+    r.flags_36.extend(bflags)
+    r.flags.extend(bflags)
+    r.notes.extend(bnotes)
     return r
 
 
