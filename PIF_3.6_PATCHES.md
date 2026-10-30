@@ -50,6 +50,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P19 | One decay constant can't describe fast-drop + slow-residual recovery | Big (small piece done) | Flag patched on pif-3.6-draft; two-timescale fit recorded — for Jarrod's review |
 | P20 | Table doesn't separate consistency-check rows from real-world anchors | Small | Patched on pif-3.6-draft (Role column in species results) |
 | P21 | Half-life (how long the mark lasts) is nearly invisible in results | Small | Patched on pif-3.6-draft (flag only; Δ₀ still the only gate) |
+| P22 | Nothing ties the inputs to one system (bricks, cost, residue can come from different versions or months apart) | Big (small piece done) | Flag patched on pif-3.6-draft; required-binding rule recorded — for Jarrod's review |
 
 ---
 
@@ -243,3 +244,12 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 ---
 
 *Maintained by Athena (Jarrod's Grok Bot assistant). New entries are added as they are found; statuses here are kept in step with the `pif-3.6-draft` branch.*
+
+## P22. Nothing ties the inputs to one system
+- **Problem:** A score combines bricks, cost ratio, continuity, and a residue series, but nothing records that they all came from the same system, the same version, at about the same time. Bricks could be graded on one model version, the cost ratio measured on another, and the residue series taken months later (or from a different instance, or a different animal of the same breed).
+- **Why it matters:** This is an easy way to fake a high band without faking any single measurement: take the best-looking result for each input from different runs and stitch them together. It also happens by accident with cloud AIs, which change version often, so a stitched score can describe a system that never existed.
+- **Proposed fix:** *Small piece (done):* an optional `measured_on` record per row, giving the system, version, and date for each input. `pif36.score_row` flags `INPUTS_NOT_BOUND` (with a note saying why) when inputs name different systems or versions, or were measured more than 30 days apart (`BINDING_MAX_SPREAD_DAYS`). Flag only; the band does not change, and rows without the record are untouched. *Big:* make binding a requirement for PATIENT (all inputs from one stated system and version inside one window), and decide the window length and what counts as "the same system" for animals, humans, and models that update continuously. Pairs naturally with P17 (who measures, and how).
+- **Overlaps:** P4 (snapshots), P11/P12 (evidence and provenance), P17 (measurement protocol).
+- **Size:** Big (rule), with a small piece done.
+- **Status:** Flag patched on pif-3.6-draft (no table row has the record yet, so nothing is flagged). Requirement and window recorded — for Jarrod's review.
+- **Source:** Athena audit, Oct 29 2026.
