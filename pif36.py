@@ -107,6 +107,30 @@ def check_binding(measured_on) -> Tuple[List[str], List[str]]:
     return [], []
 
 
+# --- P23: residue vs. the system's own noise floor (flag only) -------------------
+# Optional row key "residue_noise_floor": the typical gap (same 0..1 metric as the residue
+# series) between two control runs with NO interrupt. A fitted Delta_0 below this many times
+# the noise floor cannot be told apart from ordinary run-to-run variation. Never changes the band.
+NOISE_FLOOR_MULT = 3.0
+
+
+def check_noise_floor(delta_0, noise_floor) -> Tuple[List[str], List[str]]:
+    """P23: return (flags, notes) saying whether Delta_0 stands clear of the control-run noise."""
+    if noise_floor is None:
+        return [], []
+    if (isinstance(noise_floor, bool) or not isinstance(noise_floor, (int, float))
+            or not math.isfinite(noise_floor) or not 0.0 <= noise_floor <= 1.0):
+        raise ValueError(f"residue_noise_floor must be a number in 0..1, got {noise_floor!r}")
+    if delta_0 is None:
+        return [], []
+    need = NOISE_FLOOR_MULT * float(noise_floor)
+    if float(delta_0) < need:
+        return ["RESIDUE_BELOW_NOISE"], [
+            f"3.6 P23: residue Delta_0 {delta_0} is under {NOISE_FLOOR_MULT:g}x the control-run noise floor "
+            f"{noise_floor} (needs >= {round(need, 4)}): the 'residue' may just be ordinary run-to-run variation."]
+    return [], [f"3.6 P23: residue Delta_0 {delta_0} clears {NOISE_FLOOR_MULT:g}x the control-run noise floor {noise_floor}."]
+
+
 # --- P9: post-loss frozen bound -------------------------------------------------
 LAMBDA_FROZEN_MAX_POST_LOSS = 1e-4   # /h, half-life ~289 days (3.5 uses 1e-3 = ~29 days everywhere)
 
@@ -480,7 +504,8 @@ def row_is_provisional(row: dict) -> bool:
 
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
-    free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22)."""
+    free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
+    residue_noise_floor (P23)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -516,6 +541,10 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(bflags)
     r.flags.extend(bflags)
     r.notes.extend(bnotes)
+    nflags, nnotes = check_noise_floor((r.residue or {}).get("delta_0"), row.get("residue_noise_floor"))
+    r.flags_36.extend(nflags)
+    r.flags.extend(nflags)
+    r.notes.extend(nnotes)
     return r
 
 

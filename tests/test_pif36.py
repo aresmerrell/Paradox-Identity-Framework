@@ -311,5 +311,32 @@ class TestP22InputBinding(unittest.TestCase):
             pif36.score_row({**self.ROW, "measured_on": {"vibes": {"system": "a"}}})
 
 
+class TestP23NoiseFloor(unittest.TestCase):
+    ROW = next(r for r in ROWS if r["id"] == "grok_dog")
+
+    def test_no_noise_floor_no_flag(self):
+        self.assertNotIn("RESIDUE_BELOW_NOISE", pif36.score_row(self.ROW).flags_36)
+
+    def test_clear_of_noise_no_flag(self):
+        r = pif36.score_row({**self.ROW, "residue_noise_floor": 0.05})
+        self.assertNotIn("RESIDUE_BELOW_NOISE", r.flags_36)
+        self.assertTrue(any("clears" in n for n in r.notes))
+
+    def test_below_noise_flagged_band_unchanged(self):
+        r = pif36.score_row({**self.ROW, "residue_noise_floor": 0.3})
+        self.assertIn("RESIDUE_BELOW_NOISE", r.flags_36)
+        self.assertIn("RESIDUE_BELOW_NOISE", r.flags)
+        self.assertEqual(r.band, pif35.score_row(self.ROW).band)
+
+    def test_no_residue_fit_no_flag(self):
+        row = next(x for x in ROWS if not x.get("residue_series"))
+        self.assertNotIn("RESIDUE_BELOW_NOISE", pif36.score_row({**row, "residue_noise_floor": 0.9}).flags_36)
+
+    def test_bad_value_rejected(self):
+        for bad in (-0.1, 1.5, float("nan"), "0.1", True):
+            with self.assertRaises(ValueError):
+                pif36.score_row({**self.ROW, "residue_noise_floor": bad})
+
+
 if __name__ == "__main__":
     unittest.main()
