@@ -51,6 +51,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P20 | Table doesn't separate consistency-check rows from real-world anchors | Small | Patched on pif-3.6-draft (Role column in species results) |
 | P21 | Half-life (how long the mark lasts) is nearly invisible in results | Small | Patched on pif-3.6-draft (flag only; Δ₀ still the only gate) |
 | P22 | Nothing ties the inputs to one system (bricks, cost, residue can come from different versions or months apart) | Big (small piece done) | Flag patched on pif-3.6-draft; required-binding rule recorded — for Jarrod's review |
+| P23 | Residue is never compared with the system's own run-to-run noise | Big (small piece done) | Flag patched on pif-3.6-draft; noise-floor requirement recorded — for Jarrod's review |
 
 ---
 
@@ -241,9 +242,6 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Status:** Patched on pif-3.6-draft. *Decision for Jarrod:* should half-life ever gate a band, and is 1 h the right line for the flag?
 - **Source:** Grok review Oct 28 2026.
 
----
-
-*Maintained by Athena (Jarrod's Grok Bot assistant). New entries are added as they are found; statuses here are kept in step with the `pif-3.6-draft` branch.*
 
 ## P22. Nothing ties the inputs to one system
 - **Problem:** A score combines bricks, cost ratio, continuity, and a residue series, but nothing records that they all came from the same system, the same version, at about the same time. Bricks could be graded on one model version, the cost ratio measured on another, and the residue series taken months later (or from a different instance, or a different animal of the same breed).
@@ -253,3 +251,16 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Big (rule), with a small piece done.
 - **Status:** Flag patched on pif-3.6-draft (no table row has the record yet, so nothing is flagged). Requirement and window recorded — for Jarrod's review.
 - **Source:** Athena audit, Oct 29 2026.
+
+## P23. Residue is never compared with the system's own noise
+- **Problem:** Δ₀ is read as "how far behaviour stays shifted after an interrupt", but nothing says how much the same system's behaviour shifts between two ordinary runs with no interrupt at all. Cloud AIs sample randomly, and animals and people vary day to day. The measurement stub mentions a control run, but the scorer never sees how noisy that control was.
+- **Why it matters:** On a noisy system, ordinary run-to-run variation can look like a lasting mark, so a high Δ₀ (even one clearing the 0.65 bar) may just be noise. It is also easy to game: pick a noisy metric and the "residue" comes for free. The reverse can happen too, where a real but small mark on a very steady system gets dismissed.
+- **Proposed fix:** *Small piece (done):* an optional `residue_noise_floor` per row, the typical gap (same 0 to 1 scale) between two no-interrupt control runs. `pif36.score_row` flags `RESIDUE_BELOW_NOISE` with a note when the fitted Δ₀ is under 3 times that floor (`NOISE_FLOOR_MULT`), and notes when it clears it. Flag only; the band does not change, and rows without the value are untouched. *Big:* require a measured noise floor for any PATIENT claim, decide whether 3 times is the right multiple, and decide whether the 0.65 bar should be read as "above noise" rather than as a fixed number. Pairs with P17 (the measurement protocol) and P1 (blind probes).
+- **Overlaps:** P1 (fakeable residue), P5 (cliff at 0.65), P17 (measurement protocol).
+- **Size:** Big (rule), with a small piece done.
+- **Status:** Flag patched on pif-3.6-draft (no table row has a noise floor yet, so nothing is flagged). Requirement and multiple recorded — for Jarrod's review.
+- **Source:** Athena audit, Oct 30 2026.
+
+---
+
+*Maintained by Athena (Jarrod's Grok Bot assistant). New entries are added as they are found; statuses here are kept in step with the `pif-3.6-draft` branch.*
