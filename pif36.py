@@ -24,7 +24,7 @@ import pif35
 from pif35 import (  # re-export the stable pieces unchanged
     C_ADJ_EMPTY_MAX, C_ADJ_PATIENT_MIN, COIN_EXPIRY_NOTE, PCT_CONTRADICTION,
     RESIDUE_EMPTY_MAX, RESIDUE_PATIENT_MIN, RULE4_DETECT_AT_H, RULE4_DETECT_LEVEL,
-    RULE4_MIN_SPAN_H, SKY_PSI_WEIGHT, TS_PATIENT_MIN, cost_signal, facade_penalty,
+    MIN_SAMPLES, RULE4_MIN_SPAN_H, SKY_PSI_WEIGHT, TS_PATIENT_MIN, cost_signal, facade_penalty,
     throttle_signal,
 )
 
@@ -180,9 +180,18 @@ def fit_residue(series, context: str = "interrupt") -> dict:
 
     pts = sorted(float(t) for t, _ in series)
     d["first_t_hours"] = pts[0]
+    # P24: repeated timestamps pad the sample count; a 2-parameter curve through only two
+    # distinct times always fits exactly, so R^2 (P7) and MIN_SAMPLES mean nothing.
+    n_times = len(set(pts))
+    d["distinct_times"] = n_times
+    few_times = n_times < MIN_SAMPLES
     d["r_squared"] = round(_r_squared(series, fit.delta_0, lam), 4)
     if d["status"] == "VALID":
         hl = fit.half_life_hours
+        if few_times:
+            d["quality_flags"].append("RESIDUE_FEW_TIMES")
+            d["notes"].append(f"3.6 P24: only {n_times} distinct sample times (need >= {MIN_SAMPLES}); "
+                              "repeated timestamps pad the count and any 2-time series fits a decay curve exactly.")
         if d["r_squared"] < FIT_R2_MIN:
             d["quality_flags"].append("RESIDUE_POOR_FIT")
             d["notes"].append(f"3.6 P7: R^2 {d['r_squared']} < {FIT_R2_MIN}: data is not an exponential decay.")

@@ -338,5 +338,31 @@ class TestP23NoiseFloor(unittest.TestCase):
                 pif36.score_row({**self.ROW, "residue_noise_floor": bad})
 
 
+class TestP24DistinctTimes(unittest.TestCase):
+    PADDED = [[0, 0.70], [0, 0.70], [0, 0.70], [10, 0.30]]   # 4 samples, 2 distinct times
+
+    def test_padded_series_flagged(self):
+        d = pif36.fit_residue(self.PADDED)
+        self.assertEqual(d["status"], "VALID")
+        self.assertEqual(d["r_squared"], 1.0)
+        self.assertEqual(d["distinct_times"], 2)
+        self.assertIn("RESIDUE_FEW_TIMES", d["quality_flags"])
+
+    def test_three_distinct_times_not_flagged(self):
+        d = pif36.fit_residue([[0, 0.70], [5, 0.45], [10, 0.30]])
+        self.assertNotIn("RESIDUE_FEW_TIMES", d["quality_flags"])
+
+    def test_padded_series_blocks_patient(self):
+        patient = [x for x in ROWS if pif36.score_row(x).band == "PATIENT"]
+        self.assertTrue(patient)
+        r = pif36.score_row({**patient[0], "residue_series": self.PADDED, "residue_context": "interrupt"})
+        self.assertIn("RESIDUE_FEW_TIMES", r.flags_36)
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_FEW_TIMES", pif36.score_row(row).flags_36, row["id"])
+
+
 if __name__ == "__main__":
     unittest.main()
