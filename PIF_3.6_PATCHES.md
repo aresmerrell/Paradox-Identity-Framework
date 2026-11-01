@@ -52,6 +52,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P21 | Half-life (how long the mark lasts) is nearly invisible in results | Small | Patched on pif-3.6-draft (flag only; Δ₀ still the only gate) |
 | P22 | Nothing ties the inputs to one system (bricks, cost, residue can come from different versions or months apart) | Big (small piece done) | Flag patched on pif-3.6-draft; required-binding rule recorded — for Jarrod's review |
 | P23 | Residue is never compared with the system's own run-to-run noise | Big (small piece done) | Flag patched on pif-3.6-draft; noise-floor requirement recorded — for Jarrod's review |
+| P24 | Repeated timestamps pad the residue sample count, so a two-time series passes the fit check | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P7/P8); 3-point minimum recorded — for Jarrod's review |
 
 ---
 
@@ -260,6 +261,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Big (rule), with a small piece done.
 - **Status:** Flag patched on pif-3.6-draft (no table row has a noise floor yet, so nothing is flagged). Requirement and multiple recorded — for Jarrod's review.
 - **Source:** Athena audit, Oct 30 2026.
+
+## P24. Repeated timestamps let a two-point residue series pass
+- **Problem:** The residue fit needs at least 3 samples (`MIN_SAMPLES`), but it counts samples, not distinct times. A series like (0 h, 0.70), (0 h, 0.70), (0 h, 0.70), (10 h, 0.30) has four samples but only two moments. A decay curve has two numbers to fit (Δ₀ and λ), so it always passes exactly through two moments: R² comes out 1.0, P7's poor-fit check can never fire, and 3.5 and the 3.6 draft both accept it as a VALID Δ₀ of 0.70, enough for PATIENT.
+- **Why it matters:** It is an easy way to manufacture a clean-looking residue: repeat one early reading (or re-run the same probe several times at once) and add a single late one. It also happens by accident when several probes are logged with the same timestamp. Either way the "decay" was never actually watched, and the fit-quality check gives false confidence.
+- **Proposed fix:** *Small piece (done):* `pif36.fit_residue` reports `distinct_times` and adds a `RESIDUE_FEW_TIMES` quality flag when there are fewer than 3 distinct sample times. Like P7 and P8 it blocks PATIENT. No species-table row has the problem, so no current result changes. *Decision for Jarrod:* even 3 distinct times leave only one point to test a 2-number curve, so R² is weak evidence there; should PATIENT need more (say 5 distinct times), and should 3.5's `MIN_SAMPLES` itself switch to counting distinct times?
+- **Overlaps:** P7 (fit quality), P8 (extrapolated or too-short window), P17 (measurement protocol).
+- **Size:** Small (patched), with a threshold decision recorded.
+- **Status:** Patched on pif-3.6-draft. Higher minimum recorded — for Jarrod's review.
+- **Source:** Athena audit, Oct 31 2026.
 
 ---
 
