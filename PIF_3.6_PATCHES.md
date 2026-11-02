@@ -53,6 +53,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P22 | Nothing ties the inputs to one system (bricks, cost, residue can come from different versions or months apart) | Big (small piece done) | Flag patched on pif-3.6-draft; required-binding rule recorded — for Jarrod's review |
 | P23 | Residue is never compared with the system's own run-to-run noise | Big (small piece done) | Flag patched on pif-3.6-draft; noise-floor requirement recorded — for Jarrod's review |
 | P24 | Repeated timestamps pad the residue sample count, so a two-time series passes the fit check | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P7/P8); 3-point minimum recorded — for Jarrod's review |
+| P25 | Δ₀ can be projected above every reading actually taken (first sample a little late) | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P7/P8/P24); tolerance and cap-instead-of-block recorded — for Jarrod's review |
 
 ---
 
@@ -270,6 +271,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched), with a threshold decision recorded.
 - **Status:** Patched on pif-3.6-draft. Higher minimum recorded — for Jarrod's review.
 - **Source:** Athena audit, Oct 31 2026.
+
+## P25. Δ₀ can be projected above every reading actually taken
+- **Problem:** Δ₀ is the fitted curve's value at t = 0, not a reading. If the first sample comes a little after the interrupt, the fit projects backwards and can land far above anything measured. Example: readings (0.9 h, 0.55), (1.8 h, 0.275), (2.7 h, 0.1375) never go above 0.55, yet the fit gives Δ₀ = 1.0 (the cap), R² 0.99, status VALID. P8's "extrapolated" check doesn't fire because the first sample is still inside one half-life, so this series clears the 0.65 bar on paper.
+- **Why it matters:** A system can reach PATIENT on a starting residue nobody ever observed, just by sampling a bit late (on purpose or by accident). Fast-recovering systems are hit hardest, because a short half-life makes the backwards projection steep. It also lets Δ₀ hit the 1.0 cap, which reads as "maximum possible mark".
+- **Proposed fix:** *Small piece (done):* `pif36.fit_residue` reports `max_observed` and adds a `RESIDUE_ABOVE_OBSERVED` quality flag when the fitted Δ₀ is more than 0.05 (`ABOVE_OBSERVED_TOL`) above the highest reading actually taken. Like P7, P8, and P24 it blocks PATIENT. No species-table row has the problem (their series start at t = 0), so no current result changes. *Decision for Jarrod:* is 0.05 the right tolerance, and should PATIENT instead use the smaller of the fitted Δ₀ and the highest observed reading, rather than just blocking?
+- **Overlaps:** P8 (extrapolated or too-short window), P17 (measurement protocol: take a reading right after the interrupt), P23 (noise floor could set the tolerance).
+- **Size:** Small (patched), with a tolerance decision recorded.
+- **Status:** Patched on pif-3.6-draft. Tolerance and cap-instead-of-block recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 1 2026.
 
 ---
 
