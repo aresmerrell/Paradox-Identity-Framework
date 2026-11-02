@@ -364,5 +364,34 @@ class TestP24DistinctTimes(unittest.TestCase):
             self.assertNotIn("RESIDUE_FEW_TIMES", pif36.score_row(row).flags_36, row["id"])
 
 
+class TestP25AboveObserved(unittest.TestCase):
+    # every reading <= 0.55, first sample inside one half-life, good fit -> Delta_0 projected to 1.0
+    LATE_START = [[0.9, 0.55], [1.8, 0.275], [2.7, 0.1375]]
+
+    def test_projected_delta0_flagged(self):
+        d = pif36.fit_residue(self.LATE_START)
+        self.assertEqual(d["status"], "VALID")
+        self.assertGreaterEqual(d["delta_0"], 0.65)
+        self.assertGreaterEqual(d["r_squared"], pif36.FIT_R2_MIN)
+        self.assertNotIn("RESIDUE_EXTRAPOLATED", d["quality_flags"])   # P8 alone misses it
+        self.assertIn("RESIDUE_ABOVE_OBSERVED", d["quality_flags"])
+        self.assertEqual(d["max_observed"], 0.55)
+
+    def test_observed_start_not_flagged(self):
+        d = pif36.fit_residue([[0, 0.70], [5, 0.45], [10, 0.30]])
+        self.assertNotIn("RESIDUE_ABOVE_OBSERVED", d["quality_flags"])
+
+    def test_projected_delta0_blocks_patient(self):
+        patient = [x for x in ROWS if pif36.score_row(x).band == "PATIENT"]
+        self.assertTrue(patient)
+        r = pif36.score_row({**patient[0], "residue_series": self.LATE_START, "residue_context": "interrupt"})
+        self.assertIn("RESIDUE_ABOVE_OBSERVED", r.flags_36)
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_ABOVE_OBSERVED", pif36.score_row(row).flags_36, row["id"])
+
+
 if __name__ == "__main__":
     unittest.main()

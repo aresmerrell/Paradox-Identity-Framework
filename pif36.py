@@ -51,6 +51,9 @@ ADJACENT_C_ADJ = 0.10
 FIT_R2_MIN = 0.80            # below this the exponential model does not describe the data
 # interrupt context: span must cover >= 1 half-life; any context: first sample within 1 half-life of t=0
 
+# --- P25: Delta_0 may not sit above every reading actually taken ----------------
+ABOVE_OBSERVED_TOL = 0.05    # fitted Delta_0 more than this above the highest observed reading is flagged
+
 # --- P19: multi-timescale residue (flag only) ----------------------------------
 MULTI_TS_MIN_EXCESS = 0.02   # late samples sitting this far ABOVE the single-lambda fit, all of them
 
@@ -200,6 +203,14 @@ def fit_residue(series, context: str = "interrupt") -> dict:
         if context == "interrupt" and hl is not None and math.isfinite(hl) and fit.span_hours < hl:
             d["quality_flags"].append("RESIDUE_SHORT_SPAN")
             d["notes"].append(f"3.6 P8: span {fit.span_hours} h < one half-life ({hl} h): decay not actually observed.")
+        # P25: the fit can project Delta_0 far above anything measured (even to the 1.0 cap)
+        # while the first sample is still inside one half-life, so P8 does not catch it.
+        max_obs = max(max(0.0, min(1.0, float(y))) for _, y in series)
+        d["max_observed"] = round(max_obs, 4)
+        if fit.delta_0 > max_obs + ABOVE_OBSERVED_TOL:
+            d["quality_flags"].append("RESIDUE_ABOVE_OBSERVED")
+            d["notes"].append(f"3.6 P25: fitted Delta_0 {fit.delta_0} is more than {ABOVE_OBSERVED_TOL} above the highest "
+                              f"reading actually taken ({round(max_obs, 4)}): the starting residue was projected, not seen.")
         if hl is not None and math.isfinite(hl) and pts[0] > hl:
             d["quality_flags"].append("RESIDUE_EXTRAPOLATED")
             d["notes"].append(f"3.6 P8: first sample at {pts[0]} h > one half-life ({hl} h): Delta_0 is extrapolated, not observed.")
