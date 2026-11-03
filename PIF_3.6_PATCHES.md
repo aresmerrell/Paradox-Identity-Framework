@@ -54,6 +54,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P23 | Residue is never compared with the system's own run-to-run noise | Big (small piece done) | Flag patched on pif-3.6-draft; noise-floor requirement recorded — for Jarrod's review |
 | P24 | Repeated timestamps pad the residue sample count, so a two-time series passes the fit check | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P7/P8); 3-point minimum recorded — for Jarrod's review |
 | P25 | Δ₀ can be projected above every reading actually taken (first sample a little late) | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P7/P8/P24); tolerance and cap-instead-of-block recorded — for Jarrod's review |
+| P26 | The residue model assumes the mark is biggest at the interrupt; a mark that builds up first is understated or called "scripted" | Big (small piece done) | Info flags patched on pif-3.6-draft (band unchanged); onset-aware fit recorded — for Jarrod's review |
 
 ---
 
@@ -280,6 +281,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched), with a tolerance decision recorded.
 - **Status:** Patched on pif-3.6-draft. Tolerance and cap-instead-of-block recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 1 2026.
+
+## P26. A mark that builds up before it fades is understated, or called "scripted"
+- **Problem:** The residue fit assumes the mark is largest right at the interrupt (t = 0) and only fades after that. Real reactions often build up first: grief and stress responses peak hours or days later, and an AI's behaviour may shift only once a change has worked its way through its context or memory. With readings (0 h, 0.10), (0.5 h, 0.80), (1 h, 0.75), (2 h, 0.68), (4 h, 0.55), (8 h, 0.36), (16 h, 0.16), the fit gives Δ₀ 0.60 with R² 0.24 (blocked as a poor fit), even though the observed peak was 0.80. A series that only rises, such as (0 h, 0.3), (5 h, 0.5), (10 h, 0.7), (15 h, 0.8), comes out FROZEN, which 3.5 describes as a "scripted flag".
+- **Why it matters:** A slow-onset system is penalised for the shape of its reaction rather than its size, and a rising series gets an accusation of faking that the data doesn't support. It also matters for measurement: if the first reading is taken too early, before the effect shows, the result looks worse than it is.
+- **Proposed fix:** *Small piece (done):* `pif36.fit_residue` adds a `RESIDUE_DELAYED_PEAK` info flag (with `peak_observed`, the time and value of the highest reading) when the highest reading comes after the first one and sits more than 0.05 (`ONSET_TOL`) above it, and notes when the fitted Δ₀ understates that peak. It adds a `RESIDUE_RISING` info flag when the later half of the readings averages more than 0.05 above the earlier half, with a note that FROZEN there means "no decay seen", not proof of scripting. Flags only; no band changes, and no species-table row is flagged. *Big:* an onset-aware model, either fitting the decay from the observed peak onward or fitting a rise-then-fall curve, plus a rule for which value gates PATIENT (fitted start, observed peak, or the peak's fitted value) and how a rising series should be classed.
+- **Overlaps:** P7 (fit quality), P9 (frozen bound and real grief), P19 (multi-timescale shapes), P25 (Δ₀ vs. observed readings), P17 (when to take the first reading).
+- **Size:** Big (model), with a small piece done.
+- **Status:** Flags patched on pif-3.6-draft (no table row is flagged). Onset-aware fit and gating rule recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 2 2026.
 
 ---
 
