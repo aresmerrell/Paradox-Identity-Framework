@@ -393,5 +393,40 @@ class TestP25AboveObserved(unittest.TestCase):
             self.assertNotIn("RESIDUE_ABOVE_OBSERVED", pif36.score_row(row).flags_36, row["id"])
 
 
+class TestP26DelayedOnset(unittest.TestCase):
+    ONSET = [[0, 0.1], [0.5, 0.8], [1, 0.75], [2, 0.68], [4, 0.55], [8, 0.36], [16, 0.16]]
+    RISING = [[0, 0.3], [5, 0.5], [10, 0.7], [15, 0.8]]
+
+    def test_delayed_peak_flagged(self):
+        d = pif36.fit_residue(self.ONSET)
+        self.assertIn("RESIDUE_DELAYED_PEAK", d["info_flags"])
+        self.assertEqual(d["peak_observed"], [0.5, 0.8])
+        self.assertTrue(any("understates" in n for n in d["notes"]))
+        self.assertNotIn("RESIDUE_RISING", d["info_flags"])
+
+    def test_rising_flagged_and_frozen_explained(self):
+        d = pif36.fit_residue(self.RISING)
+        self.assertEqual(d["status"], "FROZEN")
+        self.assertIn("RESIDUE_RISING", d["info_flags"])
+        self.assertTrue(any("not proof of scripting" in n for n in d["notes"]))
+
+    def test_plain_decay_not_flagged(self):
+        d = pif36.fit_residue([[0, 0.70], [5, 0.45], [10, 0.30]])
+        self.assertNotIn("RESIDUE_DELAYED_PEAK", d["info_flags"])
+        self.assertNotIn("RESIDUE_RISING", d["info_flags"])
+
+    def test_flags_are_info_only(self):
+        for series in (self.ONSET, self.RISING):
+            q = pif36.fit_residue(series)["quality_flags"]
+            self.assertNotIn("RESIDUE_DELAYED_PEAK", q)
+            self.assertNotIn("RESIDUE_RISING", q)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            self.assertNotIn("RESIDUE_DELAYED_PEAK", f, row["id"])
+            self.assertNotIn("RESIDUE_RISING", f, row["id"])
+
+
 if __name__ == "__main__":
     unittest.main()

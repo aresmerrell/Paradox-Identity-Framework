@@ -54,6 +54,9 @@ FIT_R2_MIN = 0.80            # below this the exponential model does not describ
 # --- P25: Delta_0 may not sit above every reading actually taken ----------------
 ABOVE_OBSERVED_TOL = 0.05    # fitted Delta_0 more than this above the highest observed reading is flagged
 
+# --- P26: delayed onset / rising residue (flags only; band unchanged) ----------
+ONSET_TOL = 0.05             # peak this far above the first reading (or later half this far above the earlier half)
+
 # --- P19: multi-timescale residue (flag only) ----------------------------------
 MULTI_TS_MIN_EXCESS = 0.02   # late samples sitting this far ABOVE the single-lambda fit, all of them
 
@@ -189,6 +192,28 @@ def fit_residue(series, context: str = "interrupt") -> dict:
     d["distinct_times"] = n_times
     few_times = n_times < MIN_SAMPLES
     d["r_squared"] = round(_r_squared(series, fit.delta_0, lam), 4)
+    # P26: the model assumes the mark is largest at the interrupt. A mark that builds up first
+    # (delayed onset) gets a poor fit and an understated Delta_0; a steadily rising series is
+    # labelled FROZEN ("scripted") by 3.5. Flag both; band unchanged.
+    srt0 = sorted((float(t), max(0.0, min(1.0, float(y)))) for t, y in series)
+    y_first = srt0[0][1]
+    t_peak, y_peak = max(srt0, key=lambda p: (p[1], -p[0]))
+    if t_peak > srt0[0][0] and y_peak > y_first + ONSET_TOL:
+        d["info_flags"].append("RESIDUE_DELAYED_PEAK")
+        d["peak_observed"] = [t_peak, round(y_peak, 4)]
+        msg = (f"3.6 P26: highest reading {round(y_peak, 4)} comes at {t_peak} h, above the first reading "
+               f"({round(y_first, 4)}): the mark builds up before it decays, which a single decay from t = 0 does not model.")
+        if fit.delta_0 < y_peak - ONSET_TOL:
+            msg += f" Fitted Delta_0 {fit.delta_0} understates the observed peak."
+        d["notes"].append(msg)
+    half = len(srt0) // 2
+    early = [y for _, y in srt0[:half]] or [y_first]
+    later = [y for _, y in srt0[half:]]
+    if sum(later) / len(later) > sum(early) / len(early) + ONSET_TOL:
+        d["info_flags"].append("RESIDUE_RISING")
+        d["notes"].append("3.6 P26: later readings are higher on average than earlier ones: the residue is rising "
+                          "over this window, not decaying"
+                          + (" (3.5's FROZEN label here means 'no decay seen', not proof of scripting)." if d["status"] == "FROZEN" else "."))
     if d["status"] == "VALID":
         hl = fit.half_life_hours
         if few_times:
