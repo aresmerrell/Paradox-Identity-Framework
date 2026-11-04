@@ -55,6 +55,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P24 | Repeated timestamps pad the residue sample count, so a two-time series passes the fit check | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P7/P8); 3-point minimum recorded — for Jarrod's review |
 | P25 | Δ₀ can be projected above every reading actually taken (first sample a little late) | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P7/P8/P24); tolerance and cap-instead-of-block recorded — for Jarrod's review |
 | P26 | The residue model assumes the mark is biggest at the interrupt; a mark that builds up first is understated or called "scripted" | Big (small piece done) | Info flags patched on pif-3.6-draft (band unchanged); onset-aware fit recorded — for Jarrod's review |
+| P27 | Readings bunched a few minutes apart count as separate times, so a series that is really two readings passes the fit checks | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P24); 2% grouping width and a spread-out sampling rule recorded — for Jarrod's review |
 
 ---
 
@@ -290,6 +291,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Big (model), with a small piece done.
 - **Status:** Flags patched on pif-3.6-draft (no table row is flagged). Onset-aware fit and gating rule recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 2 2026.
+
+## P27. Readings bunched together act like one reading
+- **Problem:** P24 catches repeated timestamps, but readings a few minutes apart get past it. Example: (0 h, 0.80), (0.05 h, 0.79), (0.1 h, 0.78), (0.15 h, 0.77), (0.2 h, 0.76), (10 h, 0.10). That is six distinct times, so P24 is satisfied, and the fit gives Δ₀ 0.80, half-life 3.3 h, R² 0.9999, status VALID, with no flags. But for fitting purposes it is really two readings, one bunch at the start and one at 10 h. The decay rate rests entirely on the single late reading: change it to 0.4 and the half-life jumps to 10 h, still with R² 0.99.
+- **Why it matters:** The fit checks (R², span, enough samples) look strong while the curve is effectively drawn through two points, so any late value "fits". Someone can pad a series with quick back-to-back readings, or a rushed measurement can produce one by accident, and it can carry a system to PATIENT.
+- **Proposed fix:** *Small piece (done):* `pif36.fit_residue` groups sample times that sit closer together than 2% of the observation span (`CLUSTER_FRAC`), reports the number of groups as `effective_times`, and adds a `RESIDUE_CLUSTERED_TIMES` quality flag when there are fewer than 3 groups (the same minimum as P24). Like P7, P8, P24 and P25 it blocks PATIENT. A series already caught by P24 gets only the P24 flag. No species-table row is flagged (their readings are at 0, 1, 2, 4, 8, 24 h and beyond), so no current result changes. *Decision for Jarrod:* is 2% of the span the right grouping width, and should the measurement protocol (P17) require readings spread across the window, for example at least one in each third of the span?
+- **Overlaps:** P24 (repeated timestamps), P7 (fit quality), P8 (span), P17 (measurement protocol and sampling schedule).
+- **Size:** Small (patched), with a width decision recorded.
+- **Status:** Patched on pif-3.6-draft. Grouping width and spread-out sampling rule recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 3 2026.
 
 ---
 
