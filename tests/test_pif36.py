@@ -393,6 +393,40 @@ class TestP25AboveObserved(unittest.TestCase):
             self.assertNotIn("RESIDUE_ABOVE_OBSERVED", pif36.score_row(row).flags_36, row["id"])
 
 
+class TestP27ClusteredTimes(unittest.TestCase):
+    CLUSTERED = [[0, 0.80], [0.05, 0.79], [0.1, 0.78], [0.15, 0.77], [0.2, 0.76], [10, 0.10]]
+
+    def test_clustered_series_flagged(self):
+        d = pif36.fit_residue(self.CLUSTERED)
+        self.assertEqual(d["status"], "VALID")
+        self.assertGreater(d["r_squared"], 0.99)
+        self.assertEqual(d["distinct_times"], 6)
+        self.assertEqual(d["effective_times"], 2)
+        self.assertIn("RESIDUE_CLUSTERED_TIMES", d["quality_flags"])
+        self.assertNotIn("RESIDUE_FEW_TIMES", d["quality_flags"])
+
+    def test_spread_series_not_flagged(self):
+        d = pif36.fit_residue([[0, 0.70], [5, 0.45], [10, 0.30]])
+        self.assertEqual(d["effective_times"], 3)
+        self.assertNotIn("RESIDUE_CLUSTERED_TIMES", d["quality_flags"])
+
+    def test_padded_series_gets_p24_not_p27(self):
+        q = pif36.fit_residue(TestP24DistinctTimes.PADDED)["quality_flags"]
+        self.assertIn("RESIDUE_FEW_TIMES", q)
+        self.assertNotIn("RESIDUE_CLUSTERED_TIMES", q)
+
+    def test_clustered_series_blocks_patient(self):
+        patient = [x for x in ROWS if pif36.score_row(x).band == "PATIENT"]
+        self.assertTrue(patient)
+        r = pif36.score_row({**patient[0], "residue_series": self.CLUSTERED, "residue_context": "interrupt"})
+        self.assertIn("RESIDUE_CLUSTERED_TIMES", r.flags_36)
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_CLUSTERED_TIMES", pif36.score_row(row).flags_36, row["id"])
+
+
 class TestP26DelayedOnset(unittest.TestCase):
     ONSET = [[0, 0.1], [0.5, 0.8], [1, 0.75], [2, 0.68], [4, 0.55], [8, 0.36], [16, 0.16]]
     RISING = [[0, 0.3], [5, 0.5], [10, 0.7], [15, 0.8]]

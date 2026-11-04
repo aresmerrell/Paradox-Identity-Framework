@@ -54,6 +54,9 @@ FIT_R2_MIN = 0.80            # below this the exponential model does not describ
 # --- P25: Delta_0 may not sit above every reading actually taken ----------------
 ABOVE_OBSERVED_TOL = 0.05    # fitted Delta_0 more than this above the highest observed reading is flagged
 
+# --- P27: near-identical sample times act as one reading --------------------------
+CLUSTER_FRAC = 0.02          # consecutive times closer than this fraction of the span count as one time
+
 # --- P26: delayed onset / rising residue (flags only; band unchanged) ----------
 ONSET_TOL = 0.05             # peak this far above the first reading (or later half this far above the earlier half)
 
@@ -191,6 +194,14 @@ def fit_residue(series, context: str = "interrupt") -> dict:
     n_times = len(set(pts))
     d["distinct_times"] = n_times
     few_times = n_times < MIN_SAMPLES
+    # P27: times a few minutes apart (vs. a span of hours) are, for fitting purposes, one reading.
+    # Five readings in the first 12 minutes plus one at 10 h fit exactly like a two-time series.
+    span = pts[-1] - pts[0]
+    clusters = 1
+    for a, b in zip(pts, pts[1:]):
+        if b - a >= CLUSTER_FRAC * span:
+            clusters += 1
+    d["effective_times"] = clusters
     d["r_squared"] = round(_r_squared(series, fit.delta_0, lam), 4)
     # P26: the model assumes the mark is largest at the interrupt. A mark that builds up first
     # (delayed onset) gets a poor fit and an understated Delta_0; a steadily rising series is
@@ -220,6 +231,11 @@ def fit_residue(series, context: str = "interrupt") -> dict:
             d["quality_flags"].append("RESIDUE_FEW_TIMES")
             d["notes"].append(f"3.6 P24: only {n_times} distinct sample times (need >= {MIN_SAMPLES}); "
                               "repeated timestamps pad the count and any 2-time series fits a decay curve exactly.")
+        elif clusters < MIN_SAMPLES:
+            d["quality_flags"].append("RESIDUE_CLUSTERED_TIMES")
+            d["notes"].append(f"3.6 P27: sample times fall into only {clusters} separate groups (times closer than "
+                              f"{CLUSTER_FRAC:.0%} of the {round(span, 4)} h span count as one); need >= {MIN_SAMPLES}. "
+                              "The decay rate rests on a single lone reading, so R^2 means little.")
         if d["r_squared"] < FIT_R2_MIN:
             d["quality_flags"].append("RESIDUE_POOR_FIT")
             d["notes"].append(f"3.6 P7: R^2 {d['r_squared']} < {FIT_R2_MIN}: data is not an exponential decay.")
