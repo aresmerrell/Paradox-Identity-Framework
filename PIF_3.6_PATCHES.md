@@ -56,6 +56,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P25 | Δ₀ can be projected above every reading actually taken (first sample a little late) | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P7/P8/P24); tolerance and cap-instead-of-block recorded — for Jarrod's review |
 | P26 | The residue model assumes the mark is biggest at the interrupt; a mark that builds up first is understated or called "scripted" | Big (small piece done) | Info flags patched on pif-3.6-draft (band unchanged); onset-aware fit recorded — for Jarrod's review |
 | P27 | Readings bunched a few minutes apart count as separate times, so a series that is really two readings passes the fit checks | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P24); 2% grouping width and a spread-out sampling rule recorded — for Jarrod's review |
+| P28 | Nothing records how many runs were tried, so the best of several noisy runs can be reported as the result | Big (small piece done) | Flag patched on pif-3.6-draft (band unchanged); report-all-runs rule recorded — for Jarrod's review |
 
 ---
 
@@ -300,6 +301,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched), with a width decision recorded.
 - **Status:** Patched on pif-3.6-draft. Grouping width and spread-out sampling rule recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 3 2026.
+
+## P28. The best of several runs can be reported as the result
+- **Problem:** A row holds one cost ratio and one residue series, but nothing says how many interrupt trials or cost measurements were actually run to get them, or how the reported one was chosen. Someone can run the interrupt test five times and report only the run that looked best. None of the existing checks can see this: each reported series can be a perfectly clean, well-spaced decay that passes P7, P8, P23, P24, P25 and P27.
+- **Why it matters:** Best-of-N picking pushes every result upward, and it works on any noisy measurement without faking a single reading. Illustrative arithmetic, not a measurement: if a system's true Δ₀ is 0.55 and runs vary by about 0.07 (one standard deviation), one run clears the 0.65 bar about 8% of the time, but the best of five clears it about 33% of the time. It is different from P22 (mixing inputs from different systems or dates) and P23 (noise floor), because here every run is from the same system and the problem is which one gets kept.
+- **Proposed fix:** *Small piece (done):* an optional `trial_log` per row: `residue_runs`, `cost_runs`, and `reported` (one of pre_declared, median, mean, all, best, unstated). `pif36.score_row` flags `RUNS_SELECTED` with a note when more than one run was made and the reported value is the best one or its choice is not stated; a pre-declared run, the median, the mean, or all runs get a note instead. Flag only; the band does not change, and rows without the log are untouched. *Big:* for any PATIENT claim, require every run to be logged (or the run chosen before testing), score on the median run, and decide whether the scorer should take all runs directly instead of one series. Pairs with P17 (measurement protocol) and P12 (pre-registered holdout).
+- **Overlaps:** P12 (pre-registration), P17 (measurement protocol), P22 (stitching inputs), P23 (noise floor).
+- **Size:** Big (rule), with a small piece done.
+- **Status:** Flag patched on pif-3.6-draft (no table row has a trial log yet, so nothing is flagged). Report-all-runs rule and median scoring recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 4 2026.
 
 ---
 
