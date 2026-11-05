@@ -462,5 +462,43 @@ class TestP26DelayedOnset(unittest.TestCase):
             self.assertNotIn("RESIDUE_RISING", f, row["id"])
 
 
+class TestP28RunSelection(unittest.TestCase):
+    ROW = next(r for r in ROWS if r["id"] == "grok_dog")
+
+    def test_no_log_no_flag(self):
+        self.assertNotIn("RUNS_SELECTED", pif36.score_row(self.ROW).flags_36)
+
+    def test_single_run_no_flag(self):
+        r = pif36.score_row({**self.ROW, "trial_log": {"residue_runs": 1, "cost_runs": 1}})
+        self.assertNotIn("RUNS_SELECTED", r.flags_36)
+
+    def test_best_of_many_flagged_band_unchanged(self):
+        r = pif36.score_row({**self.ROW, "trial_log": {"residue_runs": 5, "reported": "best"}})
+        self.assertIn("RUNS_SELECTED", r.flags_36)
+        self.assertIn("RUNS_SELECTED", r.flags)
+        self.assertEqual(r.band, pif35.score_row(self.ROW).band)
+        self.assertTrue(any("5 residue runs" in n for n in r.notes))
+
+    def test_unstated_choice_flagged(self):
+        r = pif36.score_row({**self.ROW, "trial_log": {"cost_runs": 3}})
+        self.assertIn("RUNS_SELECTED", r.flags_36)
+
+    def test_honest_reporting_not_flagged(self):
+        for how in pif36.TRIAL_HONEST_REPORTING:
+            r = pif36.score_row({**self.ROW, "trial_log": {"residue_runs": 4, "cost_runs": 4, "reported": how}})
+            self.assertNotIn("RUNS_SELECTED", r.flags_36, how)
+            self.assertTrue(any("not a best-of-N pick" in n for n in r.notes))
+
+    def test_bad_values_rejected(self):
+        for bad in ({"residue_runs": 0}, {"residue_runs": 2.5}, {"residue_runs": True},
+                    {"reported": "luckiest", "residue_runs": 2}, {"vibes": 1}, [3]):
+            with self.assertRaises(ValueError):
+                pif36.score_row({**self.ROW, "trial_log": bad})
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RUNS_SELECTED", pif36.score_row(row).flags_36, row["id"])
+
+
 if __name__ == "__main__":
     unittest.main()

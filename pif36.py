@@ -140,6 +140,47 @@ def check_noise_floor(delta_0, noise_floor) -> Tuple[List[str], List[str]]:
     return [], [f"3.6 P23: residue Delta_0 {delta_0} clears {NOISE_FLOOR_MULT:g}x the control-run noise floor {noise_floor}."]
 
 
+# --- P28: best-of-N run selection (flag only) ------------------------------------
+# Optional row key "trial_log": {"residue_runs": int, "cost_runs": int, "reported": str}.
+# residue_runs / cost_runs = how many interrupt trials / cost measurements were actually run.
+# reported = how the value in the row was chosen from them. If more than one run was made and
+# the reported value is the best one, or the choice is not stated, the row gets RUNS_SELECTED:
+# picking the best of several noisy runs pushes the result up. Never changes the band.
+TRIAL_REPORTED_VALUES = ("pre_declared", "median", "mean", "all", "best", "unstated")
+TRIAL_HONEST_REPORTING = ("pre_declared", "median", "mean", "all")
+
+
+def check_trial_log(trial_log) -> Tuple[List[str], List[str]]:
+    """P28: return (flags, notes) saying whether the reported runs could be a best-of-N pick."""
+    if not trial_log:
+        return [], []
+    if not isinstance(trial_log, dict):
+        raise ValueError("trial_log must be a dict {residue_runs, cost_runs, reported}")
+    for k in trial_log:
+        if k not in ("residue_runs", "cost_runs", "reported"):
+            raise ValueError(f"trial_log key must be residue_runs, cost_runs or reported, got {k!r}")
+    runs = {}
+    for k in ("residue_runs", "cost_runs"):
+        v = trial_log.get(k)
+        if v is None:
+            continue
+        if isinstance(v, bool) or not isinstance(v, int) or v < 1:
+            raise ValueError(f"trial_log[{k!r}] must be a whole number >= 1, got {v!r}")
+        runs[k] = v
+    reported = trial_log.get("reported", "unstated")
+    if reported not in TRIAL_REPORTED_VALUES:
+        raise ValueError(f"trial_log['reported'] must be one of {TRIAL_REPORTED_VALUES}, got {reported!r}")
+    multi = {k: v for k, v in runs.items() if v > 1}
+    if not multi:
+        return [], []
+    what = ", ".join(f"{v} {k.split('_')[0]} runs" for k, v in multi.items())
+    if reported in TRIAL_HONEST_REPORTING:
+        return [], [f"3.6 P28: {what}; reported value is {reported.replace('_', '-')}, not a best-of-N pick."]
+    return ["RUNS_SELECTED"], [
+        f"3.6 P28: {what}, and the reported value is {'the best run' if reported == 'best' else 'not stated how it was chosen'}. "
+        "Picking the best of several noisy runs pushes the result up; report all runs, their median, or a run chosen in advance."]
+
+
 # --- P9: post-loss frozen bound -------------------------------------------------
 LAMBDA_FROZEN_MAX_POST_LOSS = 1e-4   # /h, half-life ~289 days (3.5 uses 1e-3 = ~29 days everywhere)
 
@@ -566,7 +607,7 @@ def row_is_provisional(row: dict) -> bool:
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
-    residue_noise_floor (P23)."""
+    residue_noise_floor (P23), trial_log (P28)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -606,6 +647,10 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(nflags)
     r.flags.extend(nflags)
     r.notes.extend(nnotes)
+    tflags, tnotes = check_trial_log(row.get("trial_log"))
+    r.flags_36.extend(tflags)
+    r.flags.extend(tflags)
+    r.notes.extend(tnotes)
     return r
 
 
