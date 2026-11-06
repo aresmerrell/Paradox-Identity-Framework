@@ -57,6 +57,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P26 | The residue model assumes the mark is biggest at the interrupt; a mark that builds up first is understated or called "scripted" | Big (small piece done) | Info flags patched on pif-3.6-draft (band unchanged); onset-aware fit recorded — for Jarrod's review |
 | P27 | Readings bunched a few minutes apart count as separate times, so a series that is really two readings passes the fit checks | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P24); 2% grouping width and a spread-out sampling rule recorded — for Jarrod's review |
 | P28 | Nothing records how many runs were tried, so the best of several noisy runs can be reported as the result | Big (small piece done) | Flag patched on pif-3.6-draft (band unchanged); report-all-runs rule recorded — for Jarrod's review |
+| P29 | Residue sample times are bare numbers treated as hours, with no unit or wall-clock check | Big (small piece done) | Flags patched on pif-3.6-draft (block PATIENT); require wall-clock hours + UTC corroboration recorded — for Jarrod's review |
 
 ---
 
@@ -310,6 +311,16 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Big (rule), with a small piece done.
 - **Status:** Flag patched on pif-3.6-draft (no table row has a trial log yet, so nothing is flagged). Report-all-runs rule and median scoring recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 4 2026.
+
+
+## P29. Residue times are bare "hours" with no unit or clock check
+- **Problem:** A residue series is `[[t, y], ...]` and the scorer treats every `t` as hours. Nothing records the unit, and nothing checks those numbers against a wall clock. Relabel the unit and every λ-based gate flips. Concrete demo: a 30-minute half-life (honest times 0, 0.25, 0.5, 1, 2 h) is VALID with half-life 0.5 h; multiply the times by 60 (report minutes as hours) and the same readings become VALID with half-life 30 h — clear of the INSTANT bound, and able to support PATIENT. The other way: a 60-day frozen grief series (honestly FROZEN) becomes a 60-hour VALID curve if days are labeled as hours.
+- **Why it matters:** FROZEN, INSTANT, Rule 4's 48 h window, P8's half-life span check, and P21's short-half-life flag only mean anything if the unit is real wall-clock hours. Without a unit or a clock, an experimenter (or a scripted agent) can walk through those gates by renaming the axis. Different from P8 (extrapolation *within* a stated unit), P17 (how to measure a cloud AI — which lists time-unit as an open question but has no scorer check), and P24/P27 (sample count / clustering): here the numbers themselves have no grounded unit.
+- **Proposed fix:** *Small piece (done):* optional `residue_time_unit` (`hours` / `minutes` / `days` / `turns` / `sessions` / `tokens`) and optional `residue_clock` (UTC ISO timestamps, one per sample). Minutes and days are converted to hours before fitting; `turns` / `sessions` / `tokens` get a `RESIDUE_NON_WALL_CLOCK` flag that blocks PATIENT; a supplied clock that disagrees with the claimed gaps (tolerance 1 minute) gets `RESIDUE_CLOCK_MISMATCH` and also blocks PATIENT. Flag/convert only when the fields are present; rows without them are untouched. *Big:* require wall-clock hours (or a documented conversion) plus UTC corroboration for any PATIENT claim, and decide how turns/sessions/tokens map to the hour-based bounds. Pairs with P4 (timestamped reading format), P17 (measurement stub open question 1), and P8.
+- **Overlaps:** P8 (span / extrapolation), P17 (cloud time unit), P4 (reading format with `t_utc`), P21 (half-life signal), P9 (frozen bound).
+- **Size:** Big (rule), with a small piece done.
+- **Status:** Flags patched on pif-3.6-draft (no table row has a unit or clock yet, so nothing is flagged). Wall-clock requirement recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 5 2026.
 
 ---
 
