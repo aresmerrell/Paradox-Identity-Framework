@@ -45,7 +45,9 @@ class TestBackwardCompatible(unittest.TestCase):
             series = pif35.residue_series_from_curve(rng.uniform(0, 1), 10 ** rng.uniform(-2.5, 1)) if rng.random() < 0.8 else None
             r35 = pif35.score(bricks, cr, prot, cost, ev, series)
             r36 = pif36.score(bricks, cr, prot, cost, ev, series)
-            blocking = {"RESIDUE_POOR_FIT", "RESIDUE_SHORT_SPAN", "RESIDUE_EXTRAPOLATED"}
+            blocking = {"RESIDUE_POOR_FIT", "RESIDUE_SHORT_SPAN", "RESIDUE_EXTRAPOLATED",
+                        "RESIDUE_FEW_TIMES", "RESIDUE_CLUSTERED_TIMES", "RESIDUE_ABOVE_OBSERVED",
+                        "RESIDUE_NON_WALL_CLOCK", "RESIDUE_CLOCK_MISMATCH"}
             if blocking & set(r36.flags_36):
                 self.assertLessEqual(ORDER[r36.band], ORDER[r35.band])
             else:
@@ -498,6 +500,101 @@ class TestP28RunSelection(unittest.TestCase):
     def test_no_table_row_flagged(self):
         for row in ROWS:
             self.assertNotIn("RUNS_SELECTED", pif36.score_row(row).flags_36, row["id"])
+
+
+
+class TestP29TimeUnitClock(unittest.TestCase):
+    """P29: bare residue times are treated as hours; unit/clock can expose relabeling."""
+
+    ROW = next(r for r in ROWS if r["id"] == "grok_dog")
+    # Instant physical reset (half-life 30 min) honestly reported in hours -> INSTANT-ish short hl
+    HONEST_MINUTES_AS_HOURS = [[0, 0.8], [0.25, 0.566], [0.5, 0.4], [1.0, 0.2], [2.0, 0.05]]
+    # Same readings with times multiplied by 60 (minutes mislabeled as hours)
+    FAKED_MINUTES_AS_HOURS = [[0, 0.8], [15, 0.566], [30, 0.4], [60, 0.2], [120, 0.05]]
+
+    def test_no_unit_no_flag(self):
+        self.assertNotIn("RESIDUE_NON_WALL_CLOCK", pif36.score_row(self.ROW).flags_36)
+        self.assertNotIn("RESIDUE_CLOCK_MISMATCH", pif36.score_row(self.ROW).flags_36)
+
+    def test_hours_unit_no_flag(self):
+        r = pif36.score_row({**self.ROW, "residue_time_unit": "hours"})
+        self.assertNotIn("RESIDUE_NON_WALL_CLOCK", r.flags_36)
+        self.assertEqual(r.band, pif35.score_row(self.ROW).band)
+
+    def test_minutes_converted_matches_honest_hours(self):
+        # Report the faked minute-scale numbers but declare unit=minutes -> convert back
+        r_min = pif36.score(FULL, 2.0, True, True, True, self.FAKED_MINUTES_AS_HOURS,
+                            residue_time_unit="minutes")
+        r_h = pif36.score(FULL, 2.0, True, True, True, self.HONEST_MINUTES_AS_HOURS,
+                          residue_time_unit="hours")
+        self.assertEqual(r_min.residue["status"], r_h.residue["status"])
+        self.assertAlmostEqual(r_min.residue["half_life_hours"], r_h.residue["half_life_hours"], places=2)
+        self.assertTrue(any("converted from minutes" in n for n in r_min.notes))
+
+    def test_turns_blocks_patient(self):
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_time_unit="turns")
+        self.assertIn("RESIDUE_NON_WALL_CLOCK", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_sessions_and_tokens_block_patient(self):
+        for unit in ("sessions", "tokens"):
+            r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_time_unit=unit)
+            self.assertIn("RESIDUE_NON_WALL_CLOCK", r.flags_36, unit)
+            self.assertEqual(r.band, "COIN", unit)
+
+    def test_clock_mismatch_blocks_patient(self):
+        # Claim multi-hour gaps, but UTC clock spans only ~1 hour
+        series = [[0, 0.80], [5, 0.55], [10, 0.38], [20, 0.18]]
+        clock = [
+            "2026-11-05T12:00:00Z",
+            "2026-11-05T12:15:00Z",
+            "2026-11-05T12:30:00Z",
+            "2026-11-05T13:00:00Z",
+        ]
+        r = pif36.score(FULL, 2.0, True, True, True, series, residue_time_unit="hours",
+                        residue_clock=clock)
+        self.assertIn("RESIDUE_CLOCK_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+
+    def test_matching_clock_ok(self):
+        series = [[0, 0.80], [1, 0.55], [2, 0.38], [4, 0.18]]
+        clock = [
+            "2026-11-05T12:00:00Z",
+            "2026-11-05T13:00:00Z",
+            "2026-11-05T14:00:00Z",
+            "2026-11-05T16:00:00Z",
+        ]
+        r = pif36.score(FULL, 2.0, True, True, True, series, residue_time_unit="hours",
+                        residue_clock=clock)
+        self.assertNotIn("RESIDUE_CLOCK_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertTrue(any("corroborates" in n for n in r.notes))
+
+    def test_faked_minutes_as_hours_looks_valid_without_clock(self):
+        # Without a clock, mislabeled minutes pass as a long VALID decay (the loophole).
+        d = pif36.fit_residue(self.FAKED_MINUTES_AS_HOURS)
+        self.assertEqual(d["status"], "VALID")
+        self.assertGreater(d["half_life_hours"], 10)
+
+    def test_bad_values_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD, residue_time_unit="fortnights")
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD, residue_clock=["not-a-time"])
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD,
+                        residue_clock=["2026-11-05T12:00:00"])  # no tz
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD,
+                        residue_clock=["2026-11-05T12:00:00Z", "2026-11-05T13:00:00Z"])
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            self.assertNotIn("RESIDUE_NON_WALL_CLOCK", f, row["id"])
+            self.assertNotIn("RESIDUE_CLOCK_MISMATCH", f, row["id"])
+
 
 
 if __name__ == "__main__":

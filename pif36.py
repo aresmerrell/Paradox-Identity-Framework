@@ -181,6 +181,77 @@ def check_trial_log(trial_log) -> Tuple[List[str], List[str]]:
         "Picking the best of several noisy runs pushes the result up; report all runs, their median, or a run chosen in advance."]
 
 
+# --- P29: residue time unit / wall clock (quality flags) ------------------------
+# Optional row keys:
+#   residue_time_unit: hours | minutes | days | turns | sessions | tokens
+#   residue_clock: list of UTC ISO timestamps, one per sample (with Z or offset)
+# Bare series times are treated as hours. Relabeling the unit walks through every
+# lambda gate (minutes labeled as hours turn an instant reset into a VALID long
+# decay; days labeled as hours turn frozen grief into VALID). When a non-wall-clock
+# unit is stated, or a supplied clock disagrees with the claimed gaps, flag and
+# block PATIENT. Rows without these fields are untouched (3.5 behaviour).
+RESIDUE_TIME_UNITS = ("hours", "minutes", "days", "turns", "sessions", "tokens")
+WALL_CLOCK_CONVERT = {"minutes": 1.0 / 60.0, "days": 24.0}  # multiply claimed t by this to get hours
+NON_WALL_CLOCK_UNITS = ("turns", "sessions", "tokens")
+CLOCK_TOL_H = 1.0 / 60.0  # 1 minute: claimed gap vs UTC gap
+
+
+def prepare_residue_series(series, time_unit=None, clock=None):
+    """P29: convert known clock units to hours and check optional UTC timestamps.
+
+    Returns (series_in_hours, flags, notes). series_in_hours is what fit_residue should see.
+    """
+    flags: List[str] = []
+    notes: List[str] = []
+    if time_unit is not None and time_unit not in RESIDUE_TIME_UNITS:
+        raise ValueError(f"residue_time_unit must be one of {RESIDUE_TIME_UNITS}, got {time_unit!r}")
+    if not series:
+        if clock is not None:
+            raise ValueError("residue_clock was given but residue_series is empty")
+        return series, flags, notes
+
+    series_h = [[float(t), y] for t, y in series]
+    if time_unit in WALL_CLOCK_CONVERT:
+        factor = WALL_CLOCK_CONVERT[time_unit]
+        series_h = [[t * factor, y] for t, y in series_h]
+        notes.append(f"3.6 P29: residue times converted from {time_unit} to hours (x {factor:g}).")
+    elif time_unit in NON_WALL_CLOCK_UNITS:
+        flags.append("RESIDUE_NON_WALL_CLOCK")
+        notes.append(f"3.6 P29: residue times are in {time_unit}, not wall-clock hours; "
+                     "the frozen/instant/Rule-4/half-life bounds are hour-based and do not apply.")
+
+    if clock is not None:
+        if not isinstance(clock, (list, tuple)):
+            raise ValueError("residue_clock must be a list of UTC ISO timestamps")
+        if len(clock) != len(series_h):
+            raise ValueError(f"residue_clock length {len(clock)} must match residue_series length {len(series_h)}")
+        times = []
+        for i, raw in enumerate(clock):
+            try:
+                times.append(_dt.datetime.fromisoformat(str(raw).replace("Z", "+00:00")))
+            except ValueError as e:
+                raise ValueError(f"residue_clock[{i}] is not an ISO timestamp: {raw!r}") from e
+            if times[-1].tzinfo is None:
+                raise ValueError(f"residue_clock[{i}] needs a timezone (Z or offset), got {raw!r}")
+        t0 = times[0]
+        claimed0 = series_h[0][0]
+        mismatches = []
+        for i, (ts, (claimed_t, _)) in enumerate(zip(times, series_h)):
+            elapsed_h = (ts - t0).total_seconds() / 3600.0
+            claimed_gap = claimed_t - claimed0
+            if abs(elapsed_h - claimed_gap) > CLOCK_TOL_H:
+                mismatches.append(f"sample {i}: clock {elapsed_h:.4f} h vs claimed {claimed_gap:.4f} h")
+        if mismatches:
+            flags.append("RESIDUE_CLOCK_MISMATCH")
+            notes.append("3.6 P29: residue_clock does not match the claimed sample times ("
+                         + "; ".join(mismatches[:3])
+                         + ("…" if len(mismatches) > 3 else "")
+                         + "). Relabeling the time unit can walk through the hour-based gates.")
+        else:
+            notes.append("3.6 P29: residue_clock corroborates the claimed sample gaps.")
+    return series_h, flags, notes
+
+
 # --- P9: post-loss frozen bound -------------------------------------------------
 LAMBDA_FROZEN_MAX_POST_LOSS = 1e-4   # /h, half-life ~289 days (3.5 uses 1e-3 = ~29 days everywhere)
 
@@ -364,6 +435,7 @@ def _validate(cost_ratio, residue_series, residue_probe):
 def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt_evidence,
                residue_series, residue_context, residue_probe, free_copy, free_reset,
                retest_due, as_of, not_protecting_weight=None, pct_contradiction=None,
+               residue_time_unit=None, residue_clock=None,
                _sensitivity=True) -> PIF36Result:
     w_np = NOT_PROTECTING_WEIGHT if not_protecting_weight is None else float(not_protecting_weight)
     pct_cx = PCT_CONTRADICTION if pct_contradiction is None else float(pct_contradiction)
@@ -376,6 +448,12 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
 
     flags36: List[str] = []
     notes: List[str] = []
+
+    # P29: convert known clock units to hours; check optional UTC clock before fitting.
+    series_for_fit, unit_flags, unit_notes = prepare_residue_series(
+        residue_series, residue_time_unit, residue_clock)
+    flags36.extend(unit_flags)
+    notes.extend(unit_notes)
 
     g = cost_signal(cost_ratio)
     ts = g if protects_continuity else w_np * g   # = pif35.throttle_signal at the default 0.5
@@ -391,7 +469,7 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
     s_adj = s * (1.0 - SKY_PSI_WEIGHT * psi)
     pct_35 = (c_adj + s_adj * m_adj) / 20.0 * 100.0
 
-    fit = fit_residue(residue_series, residue_context)
+    fit = fit_residue(series_for_fit, residue_context)
     flags: List[str] = []
     reasons: List[str] = []
     notes = list(fit["notes"]) + notes
@@ -419,7 +497,8 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
         notes.append(f"3.6 P1: residue is {residue_probe} (no blind probe): cannot support PATIENT.")
 
     if not costable_self:
-        if d0 is not None and d0 >= RESIDUE_EMPTY_MAX and interrupt_evidence and quality_ok:
+        unit_ok = not unit_flags
+        if d0 is not None and d0 >= RESIDUE_EMPTY_MAX and interrupt_evidence and quality_ok and unit_ok:
             band = "COIN"
             reasons.append(f"no costable self; Delta_0 {d0} >= {RESIDUE_EMPTY_MAX} with independent interrupt evidence -> COIN (PATIENT impossible without costable self)")
         else:
@@ -429,6 +508,8 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
                 flags.append("LINGUISTIC_RESIDUE_ONLY")
             elif d0 is not None and d0 >= RESIDUE_EMPTY_MAX and not quality_ok:
                 reasons.append("no costable self; residue fit fails 3.6 quality checks (" + ", ".join(fit["quality_flags"]) + ") -> EMPTY")
+            elif d0 is not None and d0 >= RESIDUE_EMPTY_MAX and not unit_ok:
+                reasons.append("no costable self; residue time unit/clock fails 3.6 P29 (" + ", ".join(unit_flags) + ") -> EMPTY")
             else:
                 reasons.append(f"no costable self and no valid residue >= {RESIDUE_EMPTY_MAX} -> EMPTY")
     else:
@@ -453,6 +534,10 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
                 blockers.append("residue fit: " + ", ".join(fit["quality_flags"]))
             if not probe_ok and d0 is not None:
                 blockers.append(f"residue {residue_probe}, not blind-probed")
+            if "RESIDUE_NON_WALL_CLOCK" in unit_flags:
+                blockers.append(f"residue times in {residue_time_unit}, not wall-clock hours")
+            if "RESIDUE_CLOCK_MISMATCH" in unit_flags:
+                blockers.append("residue_clock does not match claimed sample times")
             if blockers:
                 band = "COIN"
                 reasons.append("costable self, C_adj load-bearing enough for COIN; PATIENT blocked by: " + "; ".join(blockers))
@@ -485,8 +570,8 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
         margins["delta0_minus_0.65"] = round(d0 - RESIDUE_PATIENT_MIN, 4)
         margins["delta0_minus_0.35"] = round(d0 - RESIDUE_EMPTY_MAX, 4)
         raw = pif35._best_delta0(
-            [float(t) for t, _ in residue_series],
-            [max(0.0, min(1.0, float(y))) for _, y in residue_series],
+            [float(t) for t, _ in series_for_fit],
+            [max(0.0, min(1.0, float(y))) for _, y in series_for_fit],
             math.log(2) / fit["half_life_hours"])[0]
         margins["delta0_unrounded"] = raw
     adjacent = (
@@ -507,7 +592,9 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
                   costable_self=costable_self, interrupt_evidence=interrupt_evidence,
                   residue_series=residue_series, residue_context=residue_context,
                   residue_probe=residue_probe, free_copy=free_copy, free_reset=free_reset,
-                  retest_due=retest_due, as_of=as_of, _sensitivity=False)
+                  retest_due=retest_due, as_of=as_of,
+                  residue_time_unit=residue_time_unit, residue_clock=residue_clock,
+                  _sensitivity=False)
         if not protects_continuity:
             alt = {w: _score_one(not_protecting_weight=w, pct_contradiction=pct_cx, **kw).band
                    for w in SENS_NOT_PROTECTING}
@@ -555,6 +642,8 @@ def score(
     as_of: Optional[str] = None,
     not_protecting_weight: Optional[float] = None,
     pct_contradiction: Optional[float] = None,
+    residue_time_unit: Optional[str] = None,
+    residue_clock: Optional[Sequence[str]] = None,
 ) -> PIF36Result:
     """Score one system with the 3.6 draft patches. Same positional API as pif35.score.
 
@@ -567,7 +656,8 @@ def score(
               residue_series=residue_series, residue_context=residue_context,
               residue_probe=residue_probe, free_copy=free_copy, free_reset=free_reset,
               retest_due=retest_due, as_of=as_of,
-              not_protecting_weight=not_protecting_weight, pct_contradiction=pct_contradiction)
+              not_protecting_weight=not_protecting_weight, pct_contradiction=pct_contradiction,
+              residue_time_unit=residue_time_unit, residue_clock=residue_clock)
     if bricks_rater_b is None:
         return _score_one(bricks, **kw)
 
@@ -607,7 +697,7 @@ def row_is_provisional(row: dict) -> bool:
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
-    residue_noise_floor (P23), trial_log (P28)."""
+    residue_noise_floor (P23), trial_log (P28), residue_time_unit / residue_clock (P29)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -621,6 +711,8 @@ def score_row(row: dict) -> PIF36Result:
         free_reset=row.get("free_reset", False),
         bricks_rater_b=row.get("bricks_rater_b"),
         retest_due=row.get("retest_due"),
+        residue_time_unit=row.get("residue_time_unit"),
+        residue_clock=row.get("residue_clock"),
     )
     if row_is_provisional(row):
         r.flags_36.append("PROVISIONAL_DATA")
