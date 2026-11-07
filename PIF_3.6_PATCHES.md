@@ -58,6 +58,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P27 | Readings bunched a few minutes apart count as separate times, so a series that is really two readings passes the fit checks | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT like P24); 2% grouping width and a spread-out sampling rule recorded — for Jarrod's review |
 | P28 | Nothing records how many runs were tried, so the best of several noisy runs can be reported as the result | Big (small piece done) | Flag patched on pif-3.6-draft (band unchanged); report-all-runs rule recorded — for Jarrod's review |
 | P29 | Residue sample times are bare numbers treated as hours, with no unit or wall-clock check | Big (small piece done) | Flags patched on pif-3.6-draft (block PATIENT); require wall-clock hours + UTC corroboration recorded — for Jarrod's review |
+| P30 | Rule 4's "detectable at 48 h" check uses the fitted curve, not an actual reading | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); near-48h window and require-observed rule recorded — for Jarrod's review |
 
 ---
 
@@ -321,6 +322,16 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Big (rule), with a small piece done.
 - **Status:** Flags patched on pif-3.6-draft (no table row has a unit or clock yet, so nothing is flagged). Wall-clock requirement recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 5 2026.
+
+## P30. Rule 4's "detectable at 48 h" is fitted, not observed
+- **Problem:** Dog Test Rule 4 requires independent observers to plot detectable residue over at least 48–72 hours post-loss. In 3.5 (and the 3.6 draft before this patch) that check is `fitted Δ(48 h) ≥ 0.05` plus `span ≥ 48 h`. No reading near 48 h is required, and a reading taken at 48 h that sits *below* the detect floor does not fail the check if the curve still projects above it. Concrete demos: (a) readings (0 h, 0.80), (24 h, 0.55), (48 h, 0.04) — observed 0.04 at 48 h, below the 0.05 floor — still get `rule4_pass = True` and score **PATIENT** in 3.5, because the fit predicts ~0.19 at 48 h; (b) readings only at 0, 96, 192 h pass Rule 4 with no sample anywhere near 48 h.
+- **Why it matters:** Rule 4 is the grief-verification gate. Passing it on a projection, or while the actual 48 h reading is below detect, means a post-loss PATIENT claim can rest on a curve drawn through gaps rather than on what observers could plot. Different from P8 (extrapolated Δ₀ / short span in the *interrupt* context), P25 (fitted Δ₀ above every reading), and P24/P27 (sample count / clustering): here the specific Rule 4 detect-at-48h claim is unanchored to an observation.
+- **Proposed fix:** *Small piece (done):* in post-loss context, `pif36.fit_residue` looks for readings within ±12 h of 48 h (`RULE4_NEAR_TOL_H`). If there are none, or if the highest reading in that window is below `RULE4_DETECT_LEVEL` (0.05), it adds a `RULE4_UNOBSERVED` quality flag, sets `rule4_pass = False`, and blocks PATIENT. Reports `rule4_near_samples` and `rule4_observed_max`. No species-table row is flagged (`grok_dog_postloss` has 0.0771 at 48 h). *Decision for Jarrod:* is ±12 h the right window, and should Rule 4 require a reading *at or after* 48 h (not just near it), or a minimum of two readings in the 48–72 h plot window the protocol names?
+- **Overlaps:** P8 (extrapolation), P25 (fit vs observed), P17 (measurement protocol), Dog Test Rule 4.
+- **Size:** Small (patched), with a window decision recorded.
+- **Status:** Patched on pif-3.6-draft. Near-48h window and require-observed rule recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 6 2026.
+
 
 ---
 
