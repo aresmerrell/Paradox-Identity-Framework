@@ -47,7 +47,7 @@ class TestBackwardCompatible(unittest.TestCase):
             r36 = pif36.score(bricks, cr, prot, cost, ev, series)
             blocking = {"RESIDUE_POOR_FIT", "RESIDUE_SHORT_SPAN", "RESIDUE_EXTRAPOLATED",
                         "RESIDUE_FEW_TIMES", "RESIDUE_CLUSTERED_TIMES", "RESIDUE_ABOVE_OBSERVED",
-                        "RESIDUE_NON_WALL_CLOCK", "RESIDUE_CLOCK_MISMATCH"}
+                        "RESIDUE_NON_WALL_CLOCK", "RESIDUE_CLOCK_MISMATCH", "RULE4_UNOBSERVED"}
             if blocking & set(r36.flags_36):
                 self.assertLessEqual(ORDER[r36.band], ORDER[r35.band])
             else:
@@ -594,6 +594,58 @@ class TestP29TimeUnitClock(unittest.TestCase):
             f = pif36.score_row(row).flags_36
             self.assertNotIn("RESIDUE_NON_WALL_CLOCK", f, row["id"])
             self.assertNotIn("RESIDUE_CLOCK_MISMATCH", f, row["id"])
+
+
+
+class TestP30Rule4Observed(unittest.TestCase):
+    """P30: Rule 4 detectable-at-48h must be observed, not only fitted."""
+
+    def test_observed_below_detect_blocks_patient(self):
+        # Fitted residue at 48 h clears the detect floor; the reading taken there does not.
+        series = [[0, 0.80], [24, 0.55], [48, 0.04]]
+        d = pif36.fit_residue(series, "post_loss")
+        self.assertIn("RULE4_UNOBSERVED", d["quality_flags"])
+        self.assertFalse(d["rule4_pass"])
+        self.assertEqual(d["rule4_observed_max"], 0.04)
+        r = pif36.score(FULL, 2.0, True, True, True, series, residue_context="post_loss")
+        self.assertIn("RULE4_UNOBSERVED", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+        # 3.5 still passes Rule 4 on the fit alone and can reach PATIENT
+        r35 = pif35.score(FULL, 2.0, True, True, True, series, residue_context="post_loss")
+        self.assertTrue(r35.residue["rule4_pass"])
+        self.assertEqual(r35.band, "PATIENT")
+
+    def test_no_sample_near_48h_blocks_patient(self):
+        series = [[0, 0.85], [96, 0.42], [192, 0.21]]
+        d = pif36.fit_residue(series, "post_loss")
+        self.assertIn("RULE4_UNOBSERVED", d["quality_flags"])
+        self.assertIsNone(d["rule4_observed_max"])
+        self.assertEqual(d["rule4_near_samples"], 0)
+        self.assertFalse(d["rule4_pass"])
+        r = pif36.score(FULL, 2.0, True, True, True, series, residue_context="post_loss")
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("RULE4_UNOBSERVED", r.flags_36)
+
+    def test_real_reading_near_48h_ok(self):
+        # Dog post-loss series has 0.0771 at 48 h (above detect 0.05)
+        row = next(r for r in ROWS if r["id"] == "grok_dog_postloss")
+        d = pif36.fit_residue(row["residue_series"], "post_loss")
+        self.assertNotIn("RULE4_UNOBSERVED", d["quality_flags"])
+        self.assertTrue(d["rule4_pass"])
+        self.assertGreaterEqual(d["rule4_observed_max"], pif35.RULE4_DETECT_LEVEL)
+        r = pif36.score_row(row)
+        self.assertNotIn("RULE4_UNOBSERVED", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_interrupt_context_unaffected(self):
+        # P30 is post-loss only; a clean interrupt PATIENT series stays PATIENT
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_context="interrupt")
+        self.assertEqual(r.band, "PATIENT")
+        self.assertNotIn("RULE4_UNOBSERVED", r.flags_36)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RULE4_UNOBSERVED", pif36.score_row(row).flags_36, row["id"])
 
 
 

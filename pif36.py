@@ -66,6 +66,10 @@ MULTI_TS_MIN_EXCESS = 0.02   # late samples sitting this far ABOVE the single-la
 # --- P21: half-life as a visible secondary signal (flag only; Delta_0 alone gates PATIENT)
 HALF_LIFE_SHORT_H = 1.0      # VALID residue whose half-life is under 1 h gets HALF_LIFE_SHORT
 
+# --- P30: Rule 4 "detectable at 48 h" must be an observed reading, not only a fit projection
+# Samples within this many hours of RULE4_DETECT_AT_H count as "near 48 h". Decision for Jarrod.
+RULE4_NEAR_TOL_H = 12.0
+
 # --- P18: open constants as parameters, with a sensitivity note --------------
 NOT_PROTECTING_WEIGHT = pif35.NOT_PROTECTING_WEIGHT          # 0.5 (3.5 default)
 SENS_NOT_PROTECTING = (0.25, 0.75)                           # alternatives reported in notes
@@ -271,10 +275,10 @@ def _r_squared(series, d0, lam) -> Optional[float]:
 
 
 def fit_residue(series, context: str = "interrupt") -> dict:
-    """pif35.fit_residue plus P9 (post-loss frozen bound) and P7/P8 quality fields.
+    """pif35.fit_residue plus P9 (post-loss frozen bound) and 3.6 quality fields.
 
     Returns the 3.5 ResidueFit as a dict with extra keys: r_squared, first_t_hours,
-    quality_flags (list).
+    quality_flags (list), and Rule-4 observation fields (P30).
     """
     fit = pif35.fit_residue(series, context)
     d = asdict(fit)
@@ -380,6 +384,34 @@ def fit_residue(series, context: str = "interrupt") -> dict:
             d["notes"].append(f"3.6 P21: residue half-life {hl} h (secondary signal; only Delta_0 gates PATIENT).")
             if hl < HALF_LIFE_SHORT_H:
                 d["info_flags"].append("HALF_LIFE_SHORT")
+        # P30: Rule 4's "detectable at 48 h" is checked on the fitted curve in 3.5, so a series
+        # can pass (and reach PATIENT) with no reading near 48 h, or with a reading there that
+        # sits below the detect floor. The Dog Test asks independent observers to *plot*
+        # detectable residue over 48-72 h — a projection is not a plot of what was seen.
+        if context == "post_loss":
+            near = [(t, y) for t, y in srt0
+                    if abs(t - RULE4_DETECT_AT_H) <= RULE4_NEAR_TOL_H]
+            d["rule4_near_samples"] = len(near)
+            if near:
+                obs_max = max(y for _, y in near)
+                d["rule4_observed_max"] = round(obs_max, 4)
+                if obs_max < RULE4_DETECT_LEVEL:
+                    d["quality_flags"].append("RULE4_UNOBSERVED")
+                    d["rule4_pass"] = False
+                    d["notes"].append(
+                        f"3.6 P30: readings near {RULE4_DETECT_AT_H:.0f} h "
+                        f"(within ±{RULE4_NEAR_TOL_H:g} h) top out at {round(obs_max, 4)}, "
+                        f"below the detect floor {RULE4_DETECT_LEVEL}; Rule 4 needs an observed "
+                        f"detectable mark, not only a fitted value at {RULE4_DETECT_AT_H:.0f} h.")
+            else:
+                d["rule4_observed_max"] = None
+                d["quality_flags"].append("RULE4_UNOBSERVED")
+                d["rule4_pass"] = False
+                sample_t = ", ".join(str(t) for t, _ in srt0[:6]) + ("…" if len(srt0) > 6 else "")
+                d["notes"].append(
+                    f"3.6 P30: no reading within ±{RULE4_NEAR_TOL_H:g} h of "
+                    f"{RULE4_DETECT_AT_H:.0f} h (samples at {sample_t}); Rule 4's detectable-at-"
+                    f"{RULE4_DETECT_AT_H:.0f}h check was on the fitted curve only.")
     return d
 
 
