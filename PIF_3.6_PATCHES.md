@@ -59,6 +59,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P28 | Nothing records how many runs were tried, so the best of several noisy runs can be reported as the result | Big (small piece done) | Flag patched on pif-3.6-draft (band unchanged); report-all-runs rule recorded — for Jarrod's review |
 | P29 | Residue sample times are bare numbers treated as hours, with no unit or wall-clock check | Big (small piece done) | Flags patched on pif-3.6-draft (block PATIENT); require wall-clock hours + UTC corroboration recorded — for Jarrod's review |
 | P30 | Rule 4's "detectable at 48 h" check uses the fitted curve, not an actual reading | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); near-48h window and require-observed rule recorded — for Jarrod's review |
+| P31 | Residue never checked against its matched no-interrupt control run; shared drift counts as residue | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); gate-on-excess and require-a-control rule recorded — for Jarrod's review |
 
 ---
 
@@ -332,6 +333,14 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Status:** Patched on pif-3.6-draft. Near-48h window and require-observed rule recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 6 2026.
 
+## P31. A drift the control run shares is counted as residue
+- **Problem:** The measurement stub says residue must be measured against a matched no-interrupt control run, so ordinary drift is subtracted out. The scorer never sees that control. It takes one residue series and has no way to tell whether the control was subtracted, or whether the control run drifted the same way. P23 only compares Δ₀ with a single noise number; it can't see a *shared trend*. Concrete demo: the clean decay Δ₀ 0.8, λ 0.6/h scores **PATIENT**. If the matched no-interrupt run shows almost the same curve (Δ₀ 0.75, λ 0.6/h, for example a session warm-up or context-length effect that happens with or without an interrupt), the interrupt adds only about 0.05, yet 3.5 still says PATIENT.
+- **Why it matters:** Any system whose behaviour naturally settles after a session starts produces a clean, well-sampled decay that passes every other check (P7, P8, P23–P30) without the interrupt causing anything. It can also be faked on purpose by choosing a battery that drifts on its own. The residue is meant to be the mark the interrupt leaves, not the system's normal settling.
+- **Proposed fix:** *Small piece (done):* an optional `residue_control_series` row key: raw readings of the matched no-interrupt run at the same sample times (and same time unit) as a raw `residue_series`. `pif36` fits the excess (interrupted minus control, clipped to 0–1), reports `control_excess_delta_0` and `control_excess_status`, and adds a `RESIDUE_CONTROL_SHARED` quality flag when the excess Δ₀ is more than 0.05 (`CONTROL_SHARED_TOL`) below the raw Δ₀ or is not a valid decay at all. Like P7, P8, P24, P25, P27 and P30 it blocks PATIENT. Mismatched lengths or times are rejected. Rows without a control are untouched, and no species-table row has one yet, so no current result changes. In the demo above the excess Δ₀ is 0.05 and the result drops to COIN; a flat control at 0.02 leaves it PATIENT. *Decisions for Jarrod:* should PATIENT be gated on the excess Δ₀ directly (so an excess of 0.70 against a raw 0.80 still passes) instead of blocking whenever the control explains more than 0.05, and should a control series be required for any PATIENT claim?
+- **Overlaps:** P23 (noise floor, the size of control-run variation), P17 and P4 (measurement stub and reading format already carry a `control_value`), P1 (fakeable residue), P28 (run selection).
+- **Size:** Small (patched), with a gating decision recorded.
+- **Status:** Patched on pif-3.6-draft. Gate-on-excess and require-a-control rule recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 7 2026.
 
 ---
 
