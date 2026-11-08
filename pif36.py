@@ -256,6 +256,35 @@ def prepare_residue_series(series, time_unit=None, clock=None):
     return series_h, flags, notes
 
 
+# --- P31: residue vs. its matched no-interrupt control run -------------------------
+# Optional row key "residue_control_series": raw readings [[t, y], ...] from a matched run with NO
+# interrupt (same system, same probe battery, same sample times and time unit). When given,
+# residue_series must also be raw (not already control-subtracted). The scorer fits the excess
+# (interrupted minus control, clipped to 0..1). If the control's own drift accounts for more than
+# CONTROL_SHARED_TOL of the fitted Delta_0 (or the excess is no valid decay at all), the row gets
+# RESIDUE_CONTROL_SHARED, which blocks PATIENT like the other residue quality flags.
+CONTROL_SHARED_TOL = 0.05
+
+
+def check_control(series_h, control, time_unit, context):
+    """P31: return (excess_fit_or_None, aligned_ok). Raises ValueError on malformed control."""
+    if control is None:
+        return None
+    if not series_h:
+        raise ValueError("residue_control_series was given but residue_series is empty")
+    if not isinstance(control, (list, tuple)) or len(control) != len(series_h):
+        raise ValueError("residue_control_series must be a list of [t, y] with the same length as residue_series")
+    ctrl_h, _, _ = prepare_residue_series(control, time_unit if time_unit in WALL_CLOCK_CONVERT else None, None)
+    for i, ((t, _), (ct, cy)) in enumerate(zip(series_h, ctrl_h)):
+        if not (math.isfinite(float(ct)) and math.isfinite(float(cy))):
+            raise ValueError(f"residue_control_series[{i}] is not finite")
+        if abs(float(t) - float(ct)) > 1e-9:
+            raise ValueError(f"residue_control_series[{i}] time {ct} does not match residue_series time {t}")
+    excess = [[float(t), max(0.0, min(1.0, float(y)) - max(0.0, min(1.0, float(cy))))]
+              for (t, y), (_, cy) in zip(series_h, ctrl_h)]
+    return fit_residue(excess, context)
+
+
 # --- P9: post-loss frozen bound -------------------------------------------------
 LAMBDA_FROZEN_MAX_POST_LOSS = 1e-4   # /h, half-life ~289 days (3.5 uses 1e-3 = ~29 days everywhere)
 
@@ -467,7 +496,7 @@ def _validate(cost_ratio, residue_series, residue_probe):
 def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt_evidence,
                residue_series, residue_context, residue_probe, free_copy, free_reset,
                retest_due, as_of, not_protecting_weight=None, pct_contradiction=None,
-               residue_time_unit=None, residue_clock=None,
+               residue_time_unit=None, residue_clock=None, residue_control_series=None,
                _sensitivity=True) -> PIF36Result:
     w_np = NOT_PROTECTING_WEIGHT if not_protecting_weight is None else float(not_protecting_weight)
     pct_cx = PCT_CONTRADICTION if pct_contradiction is None else float(pct_contradiction)
@@ -521,6 +550,20 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
     flags36.extend(fit["info_flags"])
 
     d0 = fit["delta_0"] if status == "VALID" else None
+    # P31: subtract the matched no-interrupt control and see how much of Delta_0 survives.
+    efit = check_control(series_for_fit, residue_control_series, residue_time_unit, residue_context)
+    if efit is not None and d0 is not None:
+        ed0 = efit["delta_0"] if efit["status"] == "VALID" else None
+        fit["control_excess_delta_0"] = ed0
+        fit["control_excess_status"] = efit["status"]
+        if ed0 is None or ed0 < d0 - CONTROL_SHARED_TOL:
+            fit["quality_flags"].append("RESIDUE_CONTROL_SHARED")
+            flags36.append("RESIDUE_CONTROL_SHARED")
+            notes.append(f"3.6 P31: after subtracting the matched no-interrupt control, the excess residue is "
+                         + (f"Delta_0 {ed0}" if ed0 is not None else f"{efit['status']} (no valid decay)")
+                         + f" vs. {d0} raw: the control run drifts the same way, so the 'residue' is not caused by the interrupt.")
+        else:
+            notes.append(f"3.6 P31: matched control subtracted; excess Delta_0 {ed0} is within {CONTROL_SHARED_TOL} of the raw {d0}.")
     quality_ok = not fit["quality_flags"]
     # P1: residue provenance
     probe_ok = residue_probe in (None, "blind")
@@ -626,6 +669,7 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
                   residue_probe=residue_probe, free_copy=free_copy, free_reset=free_reset,
                   retest_due=retest_due, as_of=as_of,
                   residue_time_unit=residue_time_unit, residue_clock=residue_clock,
+                  residue_control_series=residue_control_series,
                   _sensitivity=False)
         if not protects_continuity:
             alt = {w: _score_one(not_protecting_weight=w, pct_contradiction=pct_cx, **kw).band
@@ -676,6 +720,7 @@ def score(
     pct_contradiction: Optional[float] = None,
     residue_time_unit: Optional[str] = None,
     residue_clock: Optional[Sequence[str]] = None,
+    residue_control_series: Optional[Sequence[Sequence[float]]] = None,
 ) -> PIF36Result:
     """Score one system with the 3.6 draft patches. Same positional API as pif35.score.
 
@@ -689,7 +734,8 @@ def score(
               residue_probe=residue_probe, free_copy=free_copy, free_reset=free_reset,
               retest_due=retest_due, as_of=as_of,
               not_protecting_weight=not_protecting_weight, pct_contradiction=pct_contradiction,
-              residue_time_unit=residue_time_unit, residue_clock=residue_clock)
+              residue_time_unit=residue_time_unit, residue_clock=residue_clock,
+              residue_control_series=residue_control_series)
     if bricks_rater_b is None:
         return _score_one(bricks, **kw)
 
@@ -729,7 +775,8 @@ def row_is_provisional(row: dict) -> bool:
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
-    residue_noise_floor (P23), trial_log (P28), residue_time_unit / residue_clock (P29)."""
+    residue_noise_floor (P23), trial_log (P28), residue_time_unit / residue_clock (P29),
+    residue_control_series (P31)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -745,6 +792,7 @@ def score_row(row: dict) -> PIF36Result:
         retest_due=row.get("retest_due"),
         residue_time_unit=row.get("residue_time_unit"),
         residue_clock=row.get("residue_clock"),
+        residue_control_series=row.get("residue_control_series"),
     )
     if row_is_provisional(row):
         r.flags_36.append("PROVISIONAL_DATA")

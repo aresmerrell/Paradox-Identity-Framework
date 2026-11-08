@@ -649,5 +649,64 @@ class TestP30Rule4Observed(unittest.TestCase):
 
 
 
+class TestP31ControlRun(unittest.TestCase):
+    """P31: residue shared with a matched no-interrupt control run is not interrupt residue."""
+    TIMES = [t for t, _ in GOOD]
+
+    def test_shared_drift_blocks_patient(self):
+        ctrl = [[t, round(0.75 * math.exp(-0.6 * t), 4)] for t in self.TIMES]
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, GOOD).band, "PATIENT")
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=ctrl)
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("RESIDUE_CONTROL_SHARED", r.flags_36)
+        self.assertLess(r.residue["control_excess_delta_0"], 0.65)
+        # 3.5 has no control input and stays as it was
+        self.assertEqual(pif35.score(FULL, 2.0, True, True, True, GOOD).band, "PATIENT")
+
+    def test_flat_control_keeps_patient(self):
+        ctrl = [[t, 0.02] for t in self.TIMES]
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=ctrl)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertNotIn("RESIDUE_CONTROL_SHARED", r.flags_36)
+        self.assertTrue(any("P31" in n and "within" in n for n in r.notes))
+
+    def test_control_equal_to_series_no_valid_excess(self):
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=GOOD)
+        self.assertIn("RESIDUE_CONTROL_SHARED", r.flags_36)
+        self.assertIsNone(r.residue["control_excess_delta_0"])
+        self.assertEqual(r.band, "COIN")
+
+    def test_no_costable_self_coin_needs_clean_control(self):
+        r = pif36.score(FULL, 2.0, True, False, True, GOOD, residue_control_series=GOOD)
+        self.assertEqual(r.band, "EMPTY")
+
+    def test_mismatched_control_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=[[0, 0.0], [1, 0.0]])
+        bad = [[t + 0.5, 0.0] for t in self.TIMES]
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=bad)
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, None, residue_control_series=[[0, 0.0]])
+
+    def test_minutes_unit_converts_control_too(self):
+        series = [[t * 60, y] for t, y in GOOD]
+        ctrl = [[t * 60, 0.0] for t in self.TIMES]
+        r = pif36.score(FULL, 2.0, True, True, True, series, residue_time_unit="minutes",
+                        residue_control_series=ctrl)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_score_row_passes_control(self):
+        row = next(r for r in ROWS if pif36.score_row(r).band == "PATIENT" and r.get("residue_series"))
+        row = dict(row, residue_control_series=row["residue_series"])
+        r = pif36.score_row(row)
+        self.assertIn("RESIDUE_CONTROL_SHARED", r.flags_36)
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_CONTROL_SHARED", pif36.score_row(row).flags_36, row["id"])
+
+
 if __name__ == "__main__":
     unittest.main()
