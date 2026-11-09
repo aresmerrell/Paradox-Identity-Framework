@@ -708,5 +708,84 @@ class TestP31ControlRun(unittest.TestCase):
             self.assertNotIn("RESIDUE_CONTROL_SHARED", pif36.score_row(row).flags_36, row["id"])
 
 
+class TestP32ResidueEvent(unittest.TestCase):
+    """P32: residue_context is a self-declared label; residue_event ties it (and t = 0) to an event."""
+    SLOW_TIMES = (0, 6, 12, 24, 36, 48, 60, 72)
+    SLOW = [[t, round(0.8 * math.exp(-5e-4 * t), 4)] for t in SLOW_TIMES]   # scripted-looking, ~58-day half-life
+    FAST = pif35.residue_series_from_curve(0.8, 0.5, (0, 1, 2, 4, 8))        # gone well before 48 h
+    LOSS = {"kind": "loss", "description": "care target removed"}
+    INTR = {"kind": "interrupt", "description": "mid-task context wipe"}
+
+    def test_label_is_a_lever_both_ways(self):
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, self.SLOW, "interrupt").band, "COIN")
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, self.SLOW, "post_loss").band, "PATIENT")
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, self.FAST, "interrupt").band, "PATIENT")
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, self.FAST, "post_loss").band, "COIN")
+
+    def test_undocumented_p9_rescue_is_flagged_not_blocked(self):
+        r = pif36.score(FULL, 2.0, True, True, True, self.SLOW, "post_loss")
+        self.assertIn("POST_LOSS_UNDOCUMENTED", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+        r = pif36.score(FULL, 2.0, True, True, True, self.SLOW, "post_loss", residue_event=self.LOSS)
+        self.assertNotIn("POST_LOSS_UNDOCUMENTED", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_loss_event_labeled_interrupt_blocks_patient(self):
+        r = pif36.score(FULL, 2.0, True, True, True, self.FAST, "interrupt", residue_event=self.LOSS)
+        self.assertIn("RESIDUE_CONTEXT_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+        r = pif36.score(FULL, 2.0, True, True, True, self.SLOW, "post_loss", residue_event=self.INTR)
+        self.assertIn("RESIDUE_CONTEXT_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+
+    def test_matching_event_changes_nothing(self):
+        a = pif36.score(FULL, 2.0, True, True, True, GOOD)
+        b = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_event=self.INTR)
+        self.assertEqual((a.band, a.flags), (b.band, b.flags))
+
+    def test_event_clock_sets_t0(self):
+        times = (0, 1, 2, 4, 8, 24)
+        clock = [f"2026-11-01T{10 + t:02d}:00:00Z" if t < 14 else "2026-11-02T10:00:00Z" for t in times]
+        ok = dict(self.INTR, at_utc="2026-11-01T10:00:00Z")
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_clock=clock, residue_event=ok)
+        self.assertNotIn("RESIDUE_EVENT_CLOCK_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+        # event really happened 5 h before the first reading, but that reading is claimed as t = 0
+        late = dict(self.INTR, at_utc="2026-11-01T05:00:00Z")
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_clock=clock, residue_event=late)
+        self.assertIn("RESIDUE_EVENT_CLOCK_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+        # first reading taken before the event
+        early = dict(self.INTR, at_utc="2026-11-01T11:00:00Z")
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_clock=clock, residue_event=early)
+        self.assertIn("RESIDUE_EVENT_CLOCK_MISMATCH", r.flags_36)
+
+    def test_no_body_coin_needs_matching_event(self):
+        r = pif36.score(FULL, 1.0, True, False, True, GOOD, residue_event=self.LOSS)
+        self.assertEqual(r.band, "EMPTY")
+        self.assertEqual(pif36.score(FULL, 1.0, True, False, True, GOOD, residue_event=self.INTR).band, "COIN")
+
+    def test_malformed_event_rejected(self):
+        for bad in ("loss", {"kind": "grief", "description": "x"}, {"kind": "loss"},
+                    {"kind": "loss", "description": "  "},
+                    {"kind": "loss", "description": "x", "at_utc": "yesterday"},
+                    {"kind": "loss", "description": "x", "at_utc": "2026-11-01T10:00:00"}):
+            with self.assertRaises(ValueError):
+                pif36.score(FULL, 2.0, True, True, True, GOOD, residue_event=bad)
+
+    def test_score_row_passes_event(self):
+        row = next(r for r in ROWS if pif36.score_row(r).band == "PATIENT"
+                   and r.get("residue_context", "interrupt") == "interrupt")
+        r = pif36.score_row(dict(row, residue_event=self.LOSS))
+        self.assertIn("RESIDUE_CONTEXT_MISMATCH", r.flags_36)
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            for flag in ("RESIDUE_CONTEXT_MISMATCH", "RESIDUE_EVENT_CLOCK_MISMATCH", "POST_LOSS_UNDOCUMENTED"):
+                self.assertNotIn(flag, f, row["id"])
+
+
 if __name__ == "__main__":
     unittest.main()

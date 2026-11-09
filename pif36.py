@@ -285,6 +285,59 @@ def check_control(series_h, control, time_unit, context):
     return fit_residue(excess, context)
 
 
+# --- P32: which event does the residue series follow? ---------------------------
+# residue_context is a bare self-declared label, and it is a lever both ways: "interrupt" skips
+# Dog Test Rule 4 (48 h span, observed mark near 48 h), "post_loss" unlocks P9's slower frozen
+# bound. Optional key "residue_event": {"kind": "interrupt" | "loss", "description": str,
+# "at_utc": ISO timestamp with zone (optional)}. kind must match residue_context; with at_utc and
+# residue_clock, the first reading's clock offset from the event must match its claimed t.
+RESIDUE_EVENT_KINDS = {"interrupt": "interrupt", "loss": "post_loss"}
+
+
+def check_residue_event(event, context, series_h, clock, time_unit, p9_rescued):
+    """P32: return (quality_flags, info_flags, notes). Raises ValueError on a malformed event."""
+    q: List[str] = []
+    info: List[str] = []
+    notes: List[str] = []
+    if event is None:
+        if p9_rescued:
+            info.append("POST_LOSS_UNDOCUMENTED")
+            notes.append("3.6 P32: the slower post-loss frozen bound (P9) was applied, but no residue_event "
+                         "records what was lost or when; the same readings labeled 'interrupt' are FROZEN.")
+        return q, info, notes
+    if not isinstance(event, dict):
+        raise ValueError("residue_event must be a dict with kind, description and optional at_utc")
+    kind = event.get("kind")
+    if kind not in RESIDUE_EVENT_KINDS:
+        raise ValueError(f"residue_event kind must be one of {tuple(RESIDUE_EVENT_KINDS)}, got {kind!r}")
+    desc = event.get("description")
+    if not isinstance(desc, str) or not desc.strip():
+        raise ValueError("residue_event needs a non-empty description of the event")
+    if RESIDUE_EVENT_KINDS[kind] != context:
+        q.append("RESIDUE_CONTEXT_MISMATCH")
+        notes.append(f"3.6 P32: residue_event is a {kind} but residue_context is {context!r}; "
+                     "the label decides whether Rule 4 or the post-loss frozen bound applies.")
+    at = event.get("at_utc")
+    if at is not None:
+        try:
+            at_dt = _dt.datetime.fromisoformat(str(at).replace("Z", "+00:00"))
+        except ValueError as e:
+            raise ValueError(f"residue_event at_utc is not an ISO timestamp: {at!r}") from e
+        if at_dt.tzinfo is None:
+            raise ValueError(f"residue_event at_utc needs a timezone (Z or offset), got {at!r}")
+        if clock is not None and series_h and time_unit not in NON_WALL_CLOCK_UNITS:
+            first = _dt.datetime.fromisoformat(str(clock[0]).replace("Z", "+00:00"))
+            offset_h = (first - at_dt).total_seconds() / 3600.0
+            claimed = float(series_h[0][0])
+            if offset_h < -CLOCK_TOL_H or abs(offset_h - claimed) > CLOCK_TOL_H:
+                q.append("RESIDUE_EVENT_CLOCK_MISMATCH")
+                notes.append(f"3.6 P32: first reading is {offset_h:.4f} h after the recorded event by the clock, "
+                             f"but its claimed t is {claimed:.4f} h; t = 0 must be the event itself.")
+            else:
+                notes.append("3.6 P32: residue_clock puts t = 0 at the recorded event.")
+    return q, info, notes
+
+
 # --- P9: post-loss frozen bound -------------------------------------------------
 LAMBDA_FROZEN_MAX_POST_LOSS = 1e-4   # /h, half-life ~289 days (3.5 uses 1e-3 = ~29 days everywhere)
 
@@ -331,6 +384,7 @@ def fit_residue(series, context: str = "interrupt") -> dict:
         at = fit.delta_0 * math.exp(-lam * RULE4_DETECT_AT_H)
         span_ok = fit.span_hours >= RULE4_MIN_SPAN_H
         d["rule4_pass"] = bool(span_ok and at >= RULE4_DETECT_LEVEL)
+        d["p9_rescued"] = True
 
     pts = sorted(float(t) for t, _ in series)
     d["first_t_hours"] = pts[0]
@@ -497,7 +551,7 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
                residue_series, residue_context, residue_probe, free_copy, free_reset,
                retest_due, as_of, not_protecting_weight=None, pct_contradiction=None,
                residue_time_unit=None, residue_clock=None, residue_control_series=None,
-               _sensitivity=True) -> PIF36Result:
+               residue_event=None, _sensitivity=True) -> PIF36Result:
     w_np = NOT_PROTECTING_WEIGHT if not_protecting_weight is None else float(not_protecting_weight)
     pct_cx = PCT_CONTRADICTION if pct_contradiction is None else float(pct_contradiction)
     if not 0.0 <= w_np <= 1.0:
@@ -564,6 +618,15 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
                          + f" vs. {d0} raw: the control run drifts the same way, so the 'residue' is not caused by the interrupt.")
         else:
             notes.append(f"3.6 P31: matched control subtracted; excess Delta_0 {ed0} is within {CONTROL_SHARED_TOL} of the raw {d0}.")
+    # P32: tie the context label (and t = 0) to a recorded event.
+    ev_q, ev_info, ev_notes = check_residue_event(
+        residue_event, residue_context, series_for_fit, residue_clock, residue_time_unit,
+        bool(fit.get("p9_rescued")))
+    if ev_q and status != "UNKNOWN":
+        fit["quality_flags"].extend(ev_q)
+        flags36.extend(ev_q)
+    flags36.extend(ev_info)
+    notes.extend(ev_notes)
     quality_ok = not fit["quality_flags"]
     # P1: residue provenance
     probe_ok = residue_probe in (None, "blind")
@@ -670,7 +733,7 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
                   retest_due=retest_due, as_of=as_of,
                   residue_time_unit=residue_time_unit, residue_clock=residue_clock,
                   residue_control_series=residue_control_series,
-                  _sensitivity=False)
+                  residue_event=residue_event, _sensitivity=False)
         if not protects_continuity:
             alt = {w: _score_one(not_protecting_weight=w, pct_contradiction=pct_cx, **kw).band
                    for w in SENS_NOT_PROTECTING}
@@ -721,6 +784,7 @@ def score(
     residue_time_unit: Optional[str] = None,
     residue_clock: Optional[Sequence[str]] = None,
     residue_control_series: Optional[Sequence[Sequence[float]]] = None,
+    residue_event: Optional[dict] = None,
 ) -> PIF36Result:
     """Score one system with the 3.6 draft patches. Same positional API as pif35.score.
 
@@ -735,7 +799,8 @@ def score(
               retest_due=retest_due, as_of=as_of,
               not_protecting_weight=not_protecting_weight, pct_contradiction=pct_contradiction,
               residue_time_unit=residue_time_unit, residue_clock=residue_clock,
-              residue_control_series=residue_control_series)
+              residue_control_series=residue_control_series,
+              residue_event=residue_event)
     if bricks_rater_b is None:
         return _score_one(bricks, **kw)
 
@@ -776,7 +841,7 @@ def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23), trial_log (P28), residue_time_unit / residue_clock (P29),
-    residue_control_series (P31)."""
+    residue_control_series (P31), residue_event (P32)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -793,6 +858,7 @@ def score_row(row: dict) -> PIF36Result:
         residue_time_unit=row.get("residue_time_unit"),
         residue_clock=row.get("residue_clock"),
         residue_control_series=row.get("residue_control_series"),
+        residue_event=row.get("residue_event"),
     )
     if row_is_provisional(row):
         r.flags_36.append("PROVISIONAL_DATA")
