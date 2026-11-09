@@ -60,6 +60,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P29 | Residue sample times are bare numbers treated as hours, with no unit or wall-clock check | Big (small piece done) | Flags patched on pif-3.6-draft (block PATIENT); require wall-clock hours + UTC corroboration recorded — for Jarrod's review |
 | P30 | Rule 4's "detectable at 48 h" check uses the fitted curve, not an actual reading | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); near-48h window and require-observed rule recorded — for Jarrod's review |
 | P31 | Residue never checked against its matched no-interrupt control run; shared drift counts as residue | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); gate-on-excess and require-a-control rule recorded — for Jarrod's review |
+| P32 | The interrupt / post-loss label is self-declared and moves the band either way | Small (decisions recorded) | Patched on pif-3.6-draft (mismatch blocks PATIENT); require-an-event and Rule-4-for-interrupts recorded — for Jarrod's review |
 
 ---
 
@@ -341,6 +342,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched), with a gating decision recorded.
 - **Status:** Patched on pif-3.6-draft. Gate-on-excess and require-a-control rule recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 7 2026.
+
+## P32. The interrupt / post-loss label is self-declared and moves the band either way
+- **Problem:** `residue_context` is a bare label the row author picks, and nothing records which event the series actually follows. The label decides which rules apply, so it is a lever in both directions. Labeling a series "interrupt" skips Dog Test Rule 4 (48 h span and an observed mark near 48 h). Labeling it "post_loss" unlocks P9's slower frozen bound. Concrete demo with the `grok_dog` bricks: a fast decay (Δ₀ 0.8, λ 0.5/h, readings 0–8 h) is **PATIENT** as "interrupt" but **COIN** as "post_loss". A near-flat, scripted-looking series (Δ₀ 0.8, λ 5×10⁻⁴/h, readings 0–72 h) is **COIN** (FROZEN) as "interrupt" but **PATIENT** as "post_loss". Same readings, opposite answers, decided only by the word chosen. The scorer also assumes t = 0 is the event itself, but never checks that.
+- **Why it matters:** A loss study that recovers too fast for Rule 4 can be re-filed as an interrupt test, and a frozen, possibly scripted mark can be re-filed as slow grief. Neither needs any change to the data. Eleven PATIENT rows in the table would drop to COIN if relabeled "post_loss", which shows how much the label carries.
+- **Proposed fix:** *Small piece (done):* an optional `residue_event` row key, `{"kind": "interrupt" | "loss", "description": "...", "at_utc": "..."}` (time optional). `kind` must match `residue_context` or the row gets `RESIDUE_CONTEXT_MISMATCH`. When `at_utc` and `residue_clock` (P29) are both given, the first reading's clock time after the event must equal its claimed t (within 1 minute), otherwise `RESIDUE_EVENT_CLOCK_MISMATCH`; this also catches a first reading taken before the event. Both block PATIENT (and no-body COIN) like the other residue quality flags. When P9's slower post-loss bound rescues a series and no event is recorded, an info flag `POST_LOSS_UNDOCUMENTED` is added (band unchanged). Malformed events are rejected. No species-table row has an event or is flagged, so no current result changes. *Decisions for Jarrod:* should a recorded event be required for any PATIENT claim (and for P9's rescue in particular), and should interrupt claims get a lighter version of Rule 4 so the cheaper label is not always the easier one?
+- **Overlaps:** P9 (post-loss frozen bound), P30 (Rule 4 observed near 48 h), P29 (clock), P8 (Δ₀ extrapolated from a late first reading), P13 (self-declared inputs), P22 (tying inputs to one system).
+- **Size:** Small (patched), with decisions recorded.
+- **Status:** Patched on pif-3.6-draft. Require-an-event and Rule-4-for-interrupts rules recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 8 2026.
 
 ---
 
