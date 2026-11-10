@@ -61,6 +61,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P30 | Rule 4's "detectable at 48 h" check uses the fitted curve, not an actual reading | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); near-48h window and require-observed rule recorded — for Jarrod's review |
 | P31 | Residue never checked against its matched no-interrupt control run; shared drift counts as residue | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); gate-on-excess and require-a-control rule recorded — for Jarrod's review |
 | P32 | The interrupt / post-loss label is self-declared and moves the band either way | Small (decisions recorded) | Patched on pif-3.6-draft (mismatch blocks PATIENT); require-an-event and Rule-4-for-interrupts recorded — for Jarrod's review |
+| P33 | A faded tail of near-zero readings makes a non-decay pass the R² check | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); better fit test recorded — for Jarrod's review |
 
 ---
 
@@ -351,6 +352,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched), with decisions recorded.
 - **Status:** Patched on pif-3.6-draft. Require-an-event and Rule-4-for-interrupts rules recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 8 2026.
+
+## P33. A faded tail of near-zero readings makes a non-decay pass the R² check
+- **Problem:** P7's R² is computed over every reading. Readings taken after the mark has faded sit near 0, the curve predicts near 0 for them, so they add spread the fit "explains" for free. Concrete demo: a zigzag (0.9, 0.55, 0.85, 0.5, 0.8, 0.45 at 0–5 h) fails P7 on its own (R² 0.25). Add three ordinary-looking zero readings at 24, 32 and 40 h and R² jumps to 0.86, every 3.6 quality check passes, and the row scores **PATIENT**.
+- **Why it matters:** Late zero readings are normal, honest sampling, so this needs no faking at all. The R² gate ends up measuring how long you kept sampling after the mark faded, not whether the mark actually decayed.
+- **Proposed fix:** *Small piece (done):* re-check the fit on the decay window only, the readings taken while the fitted mark was still at or above the 0.05 detect floor. When that window has at least 3 readings and its R² is below 0.80 while the overall R² is above it, flag `RESIDUE_TAIL_PADDED_FIT`, which blocks PATIENT (and no-body COIN) like the other residue quality flags. Both R² values are reported. A clean decay with a zero tail is not flagged, and no species-table row is flagged, so no current result changes. *Decision for Jarrod:* whether to replace R² altogether with a check that ignores how many readings there are, such as a normalized error on the decay window or a test that the leftovers (readings minus curve) don't swing up and down in a pattern.
+- **Overlaps:** P7 (R² gate), P23 (noise floor), P27 (bunched readings), P28 (run selection).
+- **Size:** Small (patched), with a decision recorded.
+- **Status:** Patched on pif-3.6-draft. Replacement fit test recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 9 2026.
 
 ---
 
