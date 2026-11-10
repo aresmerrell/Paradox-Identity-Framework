@@ -47,7 +47,8 @@ class TestBackwardCompatible(unittest.TestCase):
             r36 = pif36.score(bricks, cr, prot, cost, ev, series)
             blocking = {"RESIDUE_POOR_FIT", "RESIDUE_SHORT_SPAN", "RESIDUE_EXTRAPOLATED",
                         "RESIDUE_FEW_TIMES", "RESIDUE_CLUSTERED_TIMES", "RESIDUE_ABOVE_OBSERVED",
-                        "RESIDUE_NON_WALL_CLOCK", "RESIDUE_CLOCK_MISMATCH", "RULE4_UNOBSERVED"}
+                        "RESIDUE_NON_WALL_CLOCK", "RESIDUE_CLOCK_MISMATCH", "RULE4_UNOBSERVED",
+                        "RESIDUE_TAIL_PADDED_FIT"}
             if blocking & set(r36.flags_36):
                 self.assertLessEqual(ORDER[r36.band], ORDER[r35.band])
             else:
@@ -785,6 +786,35 @@ class TestP32ResidueEvent(unittest.TestCase):
             f = pif36.score_row(row).flags_36
             for flag in ("RESIDUE_CONTEXT_MISMATCH", "RESIDUE_EVENT_CLOCK_MISMATCH", "POST_LOSS_UNDOCUMENTED"):
                 self.assertNotIn(flag, f, row["id"])
+
+
+class TestP33TailPaddedFit(unittest.TestCase):
+    ZIGZAG = [(0, 0.9), (1, 0.55), (2, 0.85), (3, 0.5), (4, 0.8), (5, 0.45)]
+    PADDED = ZIGZAG + [(24, 0.0), (32, 0.0), (40, 0.0)]
+
+    def test_zigzag_alone_fails_p7(self):
+        f = pif36.fit_residue(self.ZIGZAG)
+        self.assertIn("RESIDUE_POOR_FIT", f["quality_flags"])
+
+    def test_tail_zeros_no_longer_rescue_the_fit(self):
+        f = pif36.fit_residue(self.PADDED)
+        self.assertGreaterEqual(f["r_squared"], pif36.FIT_R2_MIN)       # overall R^2 looks fine
+        self.assertLess(f["r_squared_decay_window"], pif36.FIT_R2_MIN)  # decay window does not
+        self.assertIn("RESIDUE_TAIL_PADDED_FIT", f["quality_flags"])
+        self.assertEqual(pif35.score([0.8] * 20, 1.7, True, True, True, self.PADDED).band, "PATIENT")
+        r = pif36.score([0.8] * 20, 1.7, True, True, True, self.PADDED)
+        self.assertEqual(r.band, "COIN")
+        self.assertTrue(any("RESIDUE_TAIL_PADDED_FIT" in b for b in r.band_reasons))
+
+    def test_clean_decay_with_tail_not_flagged(self):
+        s = pif35.residue_series_from_curve(0.8, 0.6) + [(48.0, 0.0), (72.0, 0.0)]
+        f = pif36.fit_residue(s)
+        self.assertNotIn("RESIDUE_TAIL_PADDED_FIT", f["quality_flags"])
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, s).band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_TAIL_PADDED_FIT", pif36.score_row(row).flags_36, row["id"])
 
 
 if __name__ == "__main__":

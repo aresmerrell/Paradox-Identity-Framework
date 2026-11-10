@@ -23,7 +23,7 @@ from typing import List, Optional, Sequence, Tuple
 import pif35
 from pif35 import (  # re-export the stable pieces unchanged
     C_ADJ_EMPTY_MAX, C_ADJ_PATIENT_MIN, COIN_EXPIRY_NOTE, PCT_CONTRADICTION,
-    RESIDUE_EMPTY_MAX, RESIDUE_PATIENT_MIN, RULE4_DETECT_AT_H, RULE4_DETECT_LEVEL,
+    RESIDUE_DETECT_MIN, RESIDUE_EMPTY_MAX, RESIDUE_PATIENT_MIN, RULE4_DETECT_AT_H, RULE4_DETECT_LEVEL,
     MIN_SAMPLES, RULE4_MIN_SPAN_H, SKY_PSI_WEIGHT, TS_PATIENT_MIN, cost_signal, facade_penalty,
     throttle_signal,
 )
@@ -438,6 +438,24 @@ def fit_residue(series, context: str = "interrupt") -> dict:
         if d["r_squared"] < FIT_R2_MIN:
             d["quality_flags"].append("RESIDUE_POOR_FIT")
             d["notes"].append(f"3.6 P7: R^2 {d['r_squared']} < {FIT_R2_MIN}: data is not an exponential decay.")
+        # P33: R^2 over the whole series is inflated by readings taken after the mark has faded.
+        # A flat tail near 0 adds variance the curve "explains" for free, so three honest-looking
+        # zero readings at 24-40 h lift a zigzag that fails P7 (R^2 0.25) to R^2 0.86 and PATIENT.
+        # Re-check the fit on the decay window only: readings where the fitted curve is still
+        # >= RESIDUE_DETECT_MIN.
+        win = [(t, y) for t, y in srt0 if fit.delta_0 * math.exp(-lam * t) >= RESIDUE_DETECT_MIN]
+        d["decay_window_samples"] = len(win)
+        if len(win) >= MIN_SAMPLES and len(win) < len(srt0):
+            r2w = round(_r_squared(win, fit.delta_0, lam), 4)
+            d["r_squared_decay_window"] = r2w
+            if r2w < FIT_R2_MIN and d["r_squared"] >= FIT_R2_MIN:
+                d["quality_flags"].append("RESIDUE_TAIL_PADDED_FIT")
+                d["notes"].append(
+                    f"3.6 P33: R^2 is {d['r_squared']} over all readings but {r2w} over the "
+                    f"{len(win)} readings taken while the fitted mark was still >= {RESIDUE_DETECT_MIN}; "
+                    "the good overall fit comes from the faded tail, not from the decay itself.")
+        else:
+            d["r_squared_decay_window"] = None
         # Interrupt context only: post-loss rows already carry Rule 4's 48 h span, and slow
         # grief (half-life of weeks) cannot be observed for a full half-life in an MVV trial.
         if context == "interrupt" and hl is not None and math.isfinite(hl) and fit.span_hours < hl:
