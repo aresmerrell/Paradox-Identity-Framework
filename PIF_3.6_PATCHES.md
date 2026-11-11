@@ -62,6 +62,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P31 | Residue never checked against its matched no-interrupt control run; shared drift counts as residue | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); gate-on-excess and require-a-control rule recorded — for Jarrod's review |
 | P32 | The interrupt / post-loss label is self-declared and moves the band either way | Small (decisions recorded) | Patched on pif-3.6-draft (mismatch blocks PATIENT); require-an-event and Rule-4-for-interrupts recorded — for Jarrod's review |
 | P33 | A faded tail of near-zero readings makes a non-decay pass the R² check | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); better fit test recorded — for Jarrod's review |
+| P34 | Rule 4's 48 h reading is checked against a fixed 0.05 floor, not the system's own noise | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); noise-aware Rule 4 gate recorded — for Jarrod's review |
 
 ---
 
@@ -361,6 +362,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched), with a decision recorded.
 - **Status:** Patched on pif-3.6-draft. Replacement fit test recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 9 2026.
+
+## P34. Rule 4's 48 h reading is checked against a fixed floor, not the system's own noise
+- **Problem:** P23 compares only Δ₀ with the row's control-run noise floor. Dog Test Rule 4 (and P30's observed check) asks whether the mark is still *detectable* near 48 h, and uses the fixed `RULE4_DETECT_LEVEL` of 0.05 for that, whatever the noise. The 48 h reading is the smallest and noisiest point in a post-loss series, so it is exactly where noise matters most. Concrete demo: the `grok_dog_postloss` row has 0.0771 at 48 h. Give it a noise floor of 0.03: Δ₀ 0.85 clears P23 easily (needs 0.09), but the 48 h reading does not clear 3 × 0.03 = 0.09, yet Rule 4 passes and the row stays **PATIENT** with no warning.
+- **Why it matters:** Rule 4 is the grief-verification gate. If the mark observers "plot" at 48 h is inside ordinary run-to-run variation, nobody could actually tell it is there, so the gate is passed on noise. A noisier metric makes this easier, not harder. Different from P23 (Δ₀ only), P30 (no reading near 48 h, or one below the fixed floor) and P33 (fit quality on the decay window).
+- **Proposed fix:** *Small piece (done):* when a row gives `residue_noise_floor` and Rule 4 otherwise passes, `pif36.score_row` checks the observed reading near 48 h (`rule4_observed_max`, from P30) against `max(0.05, 3 × noise floor)` and adds a `RULE4_WITHIN_NOISE` flag with a note when it falls short. Flag only, like P23: the band does not change. Rows without a noise floor are untouched, and no species-table row has one, so no current result changes. *Decision for Jarrod:* should the Rule 4 detect level become "3 × noise floor (at least 0.05)" and block PATIENT, which would make a measured noise floor effectively required for any post-loss PATIENT claim?
+- **Overlaps:** P23 (noise floor), P30 (observed near 48 h), P31 (control run), P17 (measurement protocol), Dog Test Rule 4.
+- **Size:** Small (patched as a flag), with a gating decision recorded.
+- **Status:** Flag patched on pif-3.6-draft. Noise-aware Rule 4 gate recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 10 2026.
 
 ---
 
