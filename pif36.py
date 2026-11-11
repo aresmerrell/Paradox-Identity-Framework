@@ -144,6 +144,30 @@ def check_noise_floor(delta_0, noise_floor) -> Tuple[List[str], List[str]]:
     return [], [f"3.6 P23: residue Delta_0 {delta_0} clears {NOISE_FLOOR_MULT:g}x the control-run noise floor {noise_floor}."]
 
 
+# --- P34: Rule 4's 48 h reading vs. the noise floor (flag only) -------------------
+# P23 only checks Delta_0 against the control-run noise floor. Rule 4's "detectable at 48 h"
+# uses the fixed floor RULE4_DETECT_LEVEL (0.05) on the reading taken near 48 h (P30), which is
+# the smallest, noisiest point in a post-loss series. When the row gives a noise floor, the
+# reading Rule 4 relies on should also stand NOISE_FLOOR_MULT x clear of it. Never changes the band.
+def check_rule4_noise(residue, noise_floor) -> Tuple[List[str], List[str]]:
+    """P34: return (flags, notes) saying whether Rule 4's observed 48 h mark clears the noise floor."""
+    if noise_floor is None or not residue:
+        return [], []
+    if not residue.get("rule4_applies") or not residue.get("rule4_pass"):
+        return [], []
+    obs = residue.get("rule4_observed_max")
+    if obs is None:
+        return [], []
+    need = max(RULE4_DETECT_LEVEL, NOISE_FLOOR_MULT * float(noise_floor))
+    if float(obs) < need:
+        return ["RULE4_WITHIN_NOISE"], [
+            f"3.6 P34: Rule 4's observed mark near {RULE4_DETECT_AT_H:.0f} h ({obs}) clears the fixed detect "
+            f"floor {RULE4_DETECT_LEVEL} but not {NOISE_FLOOR_MULT:g}x the control-run noise floor "
+            f"{noise_floor} (needs >= {round(need, 4)}): observers could not tell it from run-to-run variation."]
+    return [], [f"3.6 P34: Rule 4's observed mark near {RULE4_DETECT_AT_H:.0f} h ({obs}) clears "
+                f"{NOISE_FLOOR_MULT:g}x the control-run noise floor {noise_floor}."]
+
+
 # --- P28: best-of-N run selection (flag only) ------------------------------------
 # Optional row key "trial_log": {"residue_runs": int, "cost_runs": int, "reported": str}.
 # residue_runs / cost_runs = how many interrupt trials / cost measurements were actually run.
@@ -858,7 +882,7 @@ def row_is_provisional(row: dict) -> bool:
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
-    residue_noise_floor (P23), trial_log (P28), residue_time_unit / residue_clock (P29),
+    residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
     residue_control_series (P31), residue_event (P32)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
@@ -903,6 +927,10 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(nflags)
     r.flags.extend(nflags)
     r.notes.extend(nnotes)
+    rflags, rnotes = check_rule4_noise(r.residue, row.get("residue_noise_floor"))
+    r.flags_36.extend(rflags)
+    r.flags.extend(rflags)
+    r.notes.extend(rnotes)
     tflags, tnotes = check_trial_log(row.get("trial_log"))
     r.flags_36.extend(tflags)
     r.flags.extend(tflags)

@@ -650,6 +650,40 @@ class TestP30Rule4Observed(unittest.TestCase):
 
 
 
+class TestP34Rule4Noise(unittest.TestCase):
+    """P34: Rule 4's observed 48 h mark should clear the row's own noise floor (flag only)."""
+    ROW = next(r for r in ROWS if r["id"] == "grok_dog_postloss")
+
+    def test_within_noise_flagged_band_unchanged(self):
+        # 48 h reading 0.0771 clears 0.05 but not 3 x 0.03 = 0.09; Delta_0 0.85 clears P23.
+        r = pif36.score_row({**self.ROW, "residue_noise_floor": 0.03})
+        self.assertIn("RULE4_WITHIN_NOISE", r.flags_36)
+        self.assertIn("RULE4_WITHIN_NOISE", r.flags)
+        self.assertNotIn("RESIDUE_BELOW_NOISE", r.flags_36)
+        self.assertEqual(r.band, pif36.score_row(self.ROW).band)
+
+    def test_clear_of_noise_no_flag(self):
+        r = pif36.score_row({**self.ROW, "residue_noise_floor": 0.01})
+        self.assertNotIn("RULE4_WITHIN_NOISE", r.flags_36)
+        self.assertTrue(any("3.6 P34" in n and "clears" in n for n in r.notes))
+
+    def test_no_noise_floor_no_flag(self):
+        self.assertNotIn("RULE4_WITHIN_NOISE", pif36.score_row(self.ROW).flags_36)
+
+    def test_interrupt_rows_unaffected(self):
+        row = next(r for r in ROWS if r["id"] == "grok_dog")
+        r = pif36.score_row({**row, "residue_noise_floor": 0.2})
+        self.assertNotIn("RULE4_WITHIN_NOISE", r.flags_36)
+
+    def test_rule4_already_failed_not_double_flagged(self):
+        d = pif36.fit_residue([[0, 0.80], [24, 0.55], [48, 0.04]], "post_loss")
+        self.assertEqual(pif36.check_rule4_noise(d, 0.03), ([], []))
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RULE4_WITHIN_NOISE", pif36.score_row(row).flags_36, row["id"])
+
+
 class TestP31ControlRun(unittest.TestCase):
     """P31: residue shared with a matched no-interrupt control run is not interrupt residue."""
     TIMES = [t for t, _ in GOOD]
