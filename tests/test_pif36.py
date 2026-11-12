@@ -853,3 +853,30 @@ class TestP33TailPaddedFit(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestP35UnprobedNoBodyCoin(unittest.TestCase):
+    def _row(self, **kw):
+        import json
+        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        r = dict([x for x in rows if x["id"] == "v21_interrupt_messy_no_body"][0])
+        r.update(kw)
+        return r
+
+    def test_self_report_no_body_coin_flagged(self):
+        for p in ("announced", "self_report"):
+            r = pif36.score_row(self._row(residue_probe=p))
+            self.assertEqual(r.band, "COIN")
+            self.assertIn("RESIDUE_UNPROBED_NO_BODY_COIN", r.flags)
+
+    def test_blind_or_unstated_not_flagged(self):
+        for p in (None, "blind"):
+            r = pif36.score_row(self._row(residue_probe=p))
+            self.assertEqual(r.band, "COIN")
+            self.assertNotIn("RESIDUE_UNPROBED_NO_BODY_COIN", r.flags)
+
+    def test_without_interrupt_evidence_stays_empty_unflagged(self):
+        r = pif36.score_row(self._row(residue_probe="self_report", interrupt_evidence=False))
+        self.assertEqual(r.band, "EMPTY")
+        self.assertNotIn("RESIDUE_UNPROBED_NO_BODY_COIN", r.flags)

@@ -681,6 +681,12 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
         if d0 is not None and d0 >= RESIDUE_EMPTY_MAX and interrupt_evidence and quality_ok and unit_ok:
             band = "COIN"
             reasons.append(f"no costable self; Delta_0 {d0} >= {RESIDUE_EMPTY_MAX} with independent interrupt evidence -> COIN (PATIENT impossible without costable self)")
+            # P35: on this path the residue alone lifts EMPTY to COIN, so P1's "caps at COIN" does nothing.
+            if residue_probe in ("announced", "self_report"):
+                flags36.append("RESIDUE_UNPROBED_NO_BODY_COIN")
+                notes.append(f"3.6 P35: no costable self, so COIN rests on the residue alone, and that residue is "
+                             f"{residue_probe} (no blind probe). P1's PATIENT cap has no effect here; the same "
+                             f"row scores EMPTY without the residue. Flag only: band unchanged.")
         else:
             band = "EMPTY"
             if d0 is not None and d0 >= RESIDUE_EMPTY_MAX and not interrupt_evidence:
