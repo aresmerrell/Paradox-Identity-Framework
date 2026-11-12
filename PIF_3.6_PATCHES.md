@@ -63,6 +63,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P32 | The interrupt / post-loss label is self-declared and moves the band either way | Small (decisions recorded) | Patched on pif-3.6-draft (mismatch blocks PATIENT); require-an-event and Rule-4-for-interrupts recorded — for Jarrod's review |
 | P33 | A faded tail of near-zero readings makes a non-decay pass the R² check | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); better fit test recorded — for Jarrod's review |
 | P34 | Rule 4's 48 h reading is checked against a fixed 0.05 floor, not the system's own noise | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); noise-aware Rule 4 gate recorded — for Jarrod's review |
+| P35 | Self-reported residue alone lifts a no-body system from EMPTY to COIN | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); treat-as-linguistic gate recorded — for Jarrod's review |
 
 ---
 
@@ -371,6 +372,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched as a flag), with a gating decision recorded.
 - **Status:** Flag patched on pif-3.6-draft. Noise-aware Rule 4 gate recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 10 2026.
+
+## P35. Self-reported residue alone lifts a no-body system from EMPTY to COIN
+- **Problem:** P1 caps announced or self-reported residue at COIN. On the no-costable-self path, though, COIN is already the ceiling, and the residue is the *only* thing that lifts the row out of EMPTY (together with independent interrupt evidence). So the P1 cap does nothing there: a system with no costable self can report its own "lingering mark" and get COIN, and the only sign is a `RESIDUE_UNPROBED` note saying it "cannot support PATIENT", which was never possible on that path. Concrete demo: `v21_interrupt_messy_no_body` scores COIN with `residue_probe` set to `"self_report"` or `"announced"`, and EMPTY without the residue.
+- **Why it matters:** For a bodiless system, a self-reported residue is exactly the evidence a fluent model can produce by talking. The linguistic-residue rule blocks COIN when there is no interrupt evidence, but a self-reported residue is still linguistic when the interrupt itself was real. This is the cheapest remaining route from EMPTY to COIN. Different from P1 (PATIENT cap for systems with a costable self) and P13 (the yes/no inputs).
+- **Proposed fix:** *Small piece (done):* `pif36` adds a `RESIDUE_UNPROBED_NO_BODY_COIN` flag and a note when a no-costable-self row reaches COIN on announced or self-reported residue. Flag only: the band does not change. No species-table row sets `residue_probe`, so no current result changes. *Decision for Jarrod:* should announced or self-reported residue count as linguistic residue on this path (EMPTY, like `LINGUISTIC_RESIDUE_ONLY`), so that a no-body COIN needs a blind-probed or instrument-measured mark?
+- **Overlaps:** P1 (blind probe), P13 (interrupt evidence), P17 (outside-observer measurement), P32 (self-declared context).
+- **Size:** Small (patched as a flag), with a gating decision recorded.
+- **Status:** Flag patched on pif-3.6-draft. Treat-as-linguistic gate recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 11 2026.
 
 ---
 
