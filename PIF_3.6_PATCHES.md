@@ -64,6 +64,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P33 | A faded tail of near-zero readings makes a non-decay pass the R² check | Small (decision recorded) | Patched on pif-3.6-draft (blocks PATIENT); better fit test recorded — for Jarrod's review |
 | P34 | Rule 4's 48 h reading is checked against a fixed 0.05 floor, not the system's own noise | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); noise-aware Rule 4 gate recorded — for Jarrod's review |
 | P35 | Self-reported residue alone lifts a no-body system from EMPTY to COIN | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); treat-as-linguistic gate recorded — for Jarrod's review |
+| P36 | A perfectly flat (typed-in) control run passes P31 by construction | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); require-a-real-control rule recorded — for Jarrod's review |
 
 ---
 
@@ -381,6 +382,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched as a flag), with a gating decision recorded.
 - **Status:** Flag patched on pif-3.6-draft. Treat-as-linguistic gate recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 11 2026.
+
+## P36. A perfectly flat control run passes P31 by construction
+- **Problem:** P31 subtracts a matched no-interrupt control from the residue series, but nothing checks that the control was actually measured. A control that reads exactly the same value at every sample time, most simply all zeros, subtracts nothing, so the excess equals the raw series and `RESIDUE_CONTROL_SHARED` can never fire. The control also has no clock or date of its own (P22 and P29 check only the main series). Concrete demo: the clean decay Δ₀ 0.8, λ 0.6/h with a control of 0.0 at all six sample times scores **PATIENT** with no warning, exactly as if no control had been given, but the row now looks controlled.
+- **Why it matters:** A real control run is a second run of the same battery, and it always has some run-to-run noise (that is what P23's noise floor measures). A perfectly flat control is what you get by typing one in. If Jarrod later makes a control required for PATIENT (the P31 decision), an all-zero control would satisfy that rule for free, so the requirement would add paperwork without adding evidence.
+- **Proposed fix:** *Small piece (done):* when a row gives `residue_control_series` and every control reading is identical (spread at or below `CONTROL_FLAT_TOL`, 1e-9), `pif36` adds a `RESIDUE_CONTROL_FLAT` flag and a note. Flag only: the band does not change. A control with any variation is not flagged, and no species-table row has a control, so no current result changes. *Decision for Jarrod:* if a control becomes required, should a flat control block PATIENT, and should the control carry its own `residue_clock` (and `measured_on`) so it can be checked as a real run taken alongside the main one?
+- **Overlaps:** P31 (control subtraction), P23 (noise floor), P22 (binding inputs to one system and time), P29 (clock check).
+- **Size:** Small (patched as a flag), with a gating decision recorded.
+- **Status:** Flag patched on pif-3.6-draft. Require-a-real-control rule recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 12 2026.
 
 ---
 
