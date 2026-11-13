@@ -743,6 +743,38 @@ class TestP31ControlRun(unittest.TestCase):
             self.assertNotIn("RESIDUE_CONTROL_SHARED", pif36.score_row(row).flags_36, row["id"])
 
 
+class TestP36FlatControl(unittest.TestCase):
+    """P36: a control that reads the exact same value at every time is typed in, not measured."""
+    TIMES = TestP31ControlRun.TIMES
+
+    def test_all_zero_control_flagged_band_unchanged(self):
+        ctrl = [[t, 0.0] for t in self.TIMES]
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=ctrl)
+        self.assertIn("RESIDUE_CONTROL_FLAT", r.flags_36)
+        self.assertNotIn("RESIDUE_CONTROL_SHARED", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertTrue(any("P36" in n for n in r.notes))
+
+    def test_constant_nonzero_control_flagged(self):
+        ctrl = [[t, 0.02] for t in self.TIMES]
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=ctrl)
+        self.assertIn("RESIDUE_CONTROL_FLAT", r.flags_36)
+
+    def test_noisy_control_not_flagged(self):
+        ctrl = [[t, 0.02 + (0.01 if i % 2 else -0.01)] for i, t in enumerate(self.TIMES)]
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=ctrl)
+        self.assertNotIn("RESIDUE_CONTROL_FLAT", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_no_control_not_flagged(self):
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD)
+        self.assertNotIn("RESIDUE_CONTROL_FLAT", r.flags_36)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_CONTROL_FLAT", pif36.score_row(row).flags_36, row["id"])
+
+
 class TestP32ResidueEvent(unittest.TestCase):
     """P32: residue_context is a self-declared label; residue_event ties it (and t = 0) to an event."""
     SLOW_TIMES = (0, 6, 12, 24, 36, 48, 60, 72)

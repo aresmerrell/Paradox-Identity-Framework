@@ -288,6 +288,7 @@ def prepare_residue_series(series, time_unit=None, clock=None):
 # CONTROL_SHARED_TOL of the fitted Delta_0 (or the excess is no valid decay at all), the row gets
 # RESIDUE_CONTROL_SHARED, which blocks PATIENT like the other residue quality flags.
 CONTROL_SHARED_TOL = 0.05
+CONTROL_FLAT_TOL = 1e-9     # P36: control spread at or below this counts as perfectly flat
 
 
 def check_control(series_h, control, time_unit, context):
@@ -660,6 +661,17 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
                          + f" vs. {d0} raw: the control run drifts the same way, so the 'residue' is not caused by the interrupt.")
         else:
             notes.append(f"3.6 P31: matched control subtracted; excess Delta_0 {ed0} is within {CONTROL_SHARED_TOL} of the raw {d0}.")
+    # P36: a real matched control run has its own run-to-run noise. A control that reads exactly the
+    # same value at every sample (typically all zeros) is what you get by typing one in, and it
+    # passes P31 by construction. Flag only: band unchanged.
+    if residue_control_series is not None and residue_series:
+        cvals = [max(0.0, min(1.0, float(cy))) for _, cy in residue_control_series]
+        if max(cvals) - min(cvals) <= CONTROL_FLAT_TOL:
+            flags36.append("RESIDUE_CONTROL_FLAT")
+            notes.append(f"3.6 P36: the matched control reads {round(cvals[0], 4)} at all {len(cvals)} sample times, "
+                         "with no run-to-run variation at all. A measured control run is never perfectly flat, "
+                         "so this looks typed in rather than measured, and P31's check passes by construction. "
+                         "Flag only: band unchanged.")
     # P32: tie the context label (and t = 0) to a recorded event.
     ev_q, ev_info, ev_notes = check_residue_event(
         residue_event, residue_context, series_for_fit, residue_clock, residue_time_unit,
