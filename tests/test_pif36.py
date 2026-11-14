@@ -912,3 +912,37 @@ class TestP35UnprobedNoBodyCoin(unittest.TestCase):
         r = pif36.score_row(self._row(residue_probe="self_report", interrupt_evidence=False))
         self.assertEqual(r.band, "EMPTY")
         self.assertNotIn("RESIDUE_UNPROBED_NO_BODY_COIN", r.flags)
+
+
+class TestP37ResidueAbsentCoin(unittest.TestCase):
+    def _row(self, series):
+        import json
+        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        r = dict([x for x in rows if x["id"] == "grok_octopus"][0])
+        r["residue_series"] = series
+        return r
+
+    def test_measured_clean_reset_flagged(self):
+        r = pif36.score_row(self._row([[t, 0.01] for t in (0, 1, 2, 4, 8, 16)]))
+        self.assertEqual(r.band, "COIN")
+        self.assertEqual(r.residue["status"], "NONE")
+        self.assertIn("RESIDUE_ABSENT_COIN", r.flags_36)
+
+    def test_instant_reset_flagged(self):
+        r = pif36.score_row(self._row([[0, 0.9], [1, 0.0], [2, 0.0], [4, 0.0]]))
+        self.assertEqual(r.band, "COIN")
+        self.assertEqual(r.residue["status"], "INSTANT")
+        self.assertIn("RESIDUE_ABSENT_COIN", r.flags_36)
+
+    def test_unknown_and_valid_not_flagged(self):
+        self.assertNotIn("RESIDUE_ABSENT_COIN", pif36.score_row(self._row(None)).flags_36)
+        r = pif36.score_row(self._row([[0.0, 0.55], [1.0, 0.2471], [2.0, 0.111], [4.0, 0.0224]]))
+        self.assertNotIn("RESIDUE_ABSENT_COIN", r.flags_36)
+
+    def test_no_table_row_flagged(self):
+        import json
+        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        for row in rows:
+            self.assertNotIn("RESIDUE_ABSENT_COIN", pif36.score_row(row).flags_36, row["id"])

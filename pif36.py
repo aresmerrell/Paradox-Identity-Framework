@@ -751,6 +751,16 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
         notes.append(f"Band PATIENT but 3.5 percentage {pct_35:.2f}% < {pct_cx}%: low complexity, but standing comes from the band.")
     if band == "COIN":
         notes.append(COIN_EXPIRY_NOTE)
+        # P37: on the costable-self path a MEASURED clean reset (NONE) or instant reset gets the same
+        # COIN as a row that was never measured (UNKNOWN). Measured absence of a mark is evidence,
+        # not missing data. Flag only: band unchanged (a residue bar for COIN is a decision for Jarrod).
+        if costable_self and status in ("NONE", "INSTANT"):
+            flags36.append("RESIDUE_ABSENT_COIN")
+            notes.append(f"3.6 P37: residue was measured and came back {status} "
+                         + ("(clean reset, Delta_0 below the detect floor)" if status == "NONE"
+                            else "(gone within about an hour)")
+                         + ", yet the row is COIN exactly as if residue had never been measured. "
+                         "COIN here rests on the costable self and cost ratio alone. Flag only: band unchanged.")
         # P14: COIN expiry made checkable.
         if retest_due is not None:
             due = _dt.date.fromisoformat(str(retest_due))
