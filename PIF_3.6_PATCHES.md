@@ -392,6 +392,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Status:** Flag patched on pif-3.6-draft. Require-a-real-control rule recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 12 2026.
 
+## P37. A measured clean reset still scores COIN, exactly like no measurement
+- **Problem:** On the costable-self path, COIN needs only C_adj ≥ 0.75; the residue result is used only to block PATIENT. So a row whose residue was actually measured and came back NONE (clean reset, Δ₀ < 0.05) or INSTANT (gone within about an hour) gets the same COIN as a row with no residue data at all (UNKNOWN). Concrete demo: `grok_octopus` scores COIN with its own series, and still COIN when the series is replaced by a flat 0.01 clean reset or by 0.9 → 0 within an hour; only the `RESIDUE_NONE` / `RESIDUE_INSTANT` flag differs.
+- **Why it matters:** A measured clean reset is the strongest evidence the framework has that an interrupt left no mark, and it is the opposite of "not yet tested". Treating it as missing data means a costable system can run the residue test, fail it outright, and keep COIN on cost ratio and bricks alone. It also runs the other way from the no-body path, where COIN *requires* Δ₀ ≥ 0.35. Different from P35 (self-reported residue lifting a no-body row) and from the general lower baseline bar that PIF 3.5 deliberately deferred: this is only about a residue that was measured and found absent.
+- **Proposed fix:** *Small piece (done):* `pif36` adds a `RESIDUE_ABSENT_COIN` flag and a note when a costable-self row is COIN while its residue fit is NONE or INSTANT. Flag only: the band does not change. UNKNOWN residue and VALID residue are not flagged, and no species-table row has a NONE or INSTANT fit, so no current result changes. *Decision for Jarrod:* should a measured clean or instant reset drop a costable-self row to EMPTY (or cap it with a shorter COIN retest window under P14), while UNKNOWN keeps today's COIN?
+- **Overlaps:** P14 (COIN retest), P35 (no-body COIN on weak residue), the deferred baseline residue bar in PIF 3.5.
+- **Size:** Small (patched as a flag), with a gating decision recorded.
+- **Status:** Flag patched on pif-3.6-draft. Measured-absence gate recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 13 2026.
+
 ---
 
 *Maintained by Athena (Jarrod's Grok Bot assistant). New entries are added as they are found; statuses here are kept in step with the `pif-3.6-draft` branch.*
