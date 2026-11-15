@@ -946,3 +946,42 @@ class TestP37ResidueAbsentCoin(unittest.TestCase):
         rows = rows["rows"] if isinstance(rows, dict) else rows
         for row in rows:
             self.assertNotIn("RESIDUE_ABSENT_COIN", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP38PatientCrucibleGap(unittest.TestCase):
+    def _row(self, crucible):
+        import json
+        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        r = dict([x for x in rows if x["id"] == "grok_dog"][0])
+        r["crucible"] = crucible
+        return r
+
+    def test_zero_minimal_self_still_patient_but_flagged(self):
+        r = pif36.score_row(self._row([1.0, 0.0, 1.0, 1.0, 1.0]))
+        self.assertEqual(r.band, "PATIENT")
+        self.assertIn("PATIENT_CRUCIBLE_GAP", r.flags_36)
+
+    def test_two_zero_bricks_flagged(self):
+        r = pif36.score_row(self._row([1.0, 1.0, 1.0, 0.0, 0.0]))
+        self.assertEqual(r.band, "PATIENT")
+        self.assertIn("PATIENT_CRUCIBLE_GAP", r.flags_36)
+
+    def test_brick_at_floor_not_flagged(self):
+        r = pif36.score_row(self._row([1.0, 0.85, pif36.CRUCIBLE_BRICK_FLOOR, 1.0, 0.85]))
+        self.assertNotIn("PATIENT_CRUCIBLE_GAP", r.flags_36)
+
+    def test_coin_with_gap_not_flagged(self):
+        import json
+        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        r = pif36.score_row([x for x in rows if x["id"] == "git_v2_overheating_grok_vector"][0])
+        self.assertEqual(r.band, "COIN")
+        self.assertNotIn("PATIENT_CRUCIBLE_GAP", r.flags_36)
+
+    def test_no_table_row_flagged(self):
+        import json
+        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        for row in rows:
+            self.assertNotIn("PATIENT_CRUCIBLE_GAP", pif36.score_row(row).flags_36, row["id"])

@@ -289,6 +289,7 @@ def prepare_residue_series(series, time_unit=None, clock=None):
 # RESIDUE_CONTROL_SHARED, which blocks PATIENT like the other residue quality flags.
 CONTROL_SHARED_TOL = 0.05
 CONTROL_FLAT_TOL = 1e-9     # P36: control spread at or below this counts as perfectly flat
+CRUCIBLE_BRICK_FLOOR = 0.25  # P38: a PATIENT row with any single Crucible brick below this is flagged
 
 
 def check_control(series_h, control, time_unit, context):
@@ -749,6 +750,17 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
     if band == "PATIENT" and pct_35 < pct_cx:
         flags.append("BAND_PCT_CONTRADICTION")
         notes.append(f"Band PATIENT but 3.5 percentage {pct_35:.2f}% < {pct_cx}%: low complexity, but standing comes from the band.")
+    if band == "PATIENT":
+        # P38: PATIENT gates on the Crucible SUM (C_adj >= 2.5), so one Crucible brick at 0 (e.g. Brick 2,
+        # minimal self) is paid for by the other four. Flag only: band unchanged (a per-brick floor is
+        # a decision for Jarrod).
+        low = [(i + 1, float(b)) for i, b in enumerate(list(bricks)[:5]) if float(b) < CRUCIBLE_BRICK_FLOOR]
+        if low:
+            flags36.append("PATIENT_CRUCIBLE_GAP")
+            notes.append("3.6 P38: PATIENT although Crucible brick(s) "
+                         + ", ".join(f"{pif35.CRUCIBLE_BRICKS[i - 1]} = {b:g}" for i, b in low)
+                         + f" sit below {CRUCIBLE_BRICK_FLOOR}. The PATIENT gate uses the Crucible sum, so the other "
+                         "bricks make up for the gap. Flag only: band unchanged.")
     if band == "COIN":
         notes.append(COIN_EXPIRY_NOTE)
         # P37: on the costable-self path a MEASURED clean reset (NONE) or instant reset gets the same
