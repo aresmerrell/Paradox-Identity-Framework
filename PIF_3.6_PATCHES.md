@@ -65,6 +65,8 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P34 | Rule 4's 48 h reading is checked against a fixed 0.05 floor, not the system's own noise | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); noise-aware Rule 4 gate recorded — for Jarrod's review |
 | P35 | Self-reported residue alone lifts a no-body system from EMPTY to COIN | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); treat-as-linguistic gate recorded — for Jarrod's review |
 | P36 | A perfectly flat (typed-in) control run passes P31 by construction | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); require-a-real-control rule recorded — for Jarrod's review |
+| P37 | A measured clean or instant reset still scores COIN, exactly like no measurement | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); measured-absence gate recorded — for Jarrod's review |
+| P38 | PATIENT gates on the Crucible sum, so one Crucible brick at 0 (e.g. minimal self) is paid for by the others | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); per-brick floor recorded — for Jarrod's review |
 
 ---
 
@@ -400,6 +402,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched as a flag), with a gating decision recorded.
 - **Status:** Flag patched on pif-3.6-draft. Measured-absence gate recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 13 2026.
+
+## P38. One Crucible brick at zero is paid for by the other four
+- **Problem:** PATIENT checks the Crucible only as a sum: C_adj ≥ 2.5 (and COIN only needs C_adj ≥ 0.75). No single Crucible brick has a floor, so a missing core layer is made up for by the others. Concrete demo: `grok_dog` with Brick 2 (minimal self: agency + ownership) set to **0** and the rest at 1.0 still scores **PATIENT** (C_adj 3.73); with Bricks 4 and 5 (multi-sensory integration, emotional ownership) both at 0 it is still **PATIENT** (C_adj 2.80). The same sum rule lets a costable row reach COIN on Brick 1 (physical form) alone.
+- **Why it matters:** The Crucible is meant to be the five load-bearing layers the Sky-Scraper stands on. A system with no minimal self, or no emotional ownership, is missing exactly what PATIENT is supposed to protect, yet the score cannot tell it apart from one with a mild gap spread across all five. It also hides behind the table: almost every row lists the same value for all five Crucible bricks (one percentage spread evenly), so the per-brick profile was never really tested.
+- **Proposed fix:** *Small piece (done):* `pif36` adds a `PATIENT_CRUCIBLE_GAP` flag and a note naming the brick(s) when a row is PATIENT while any Crucible brick is below `CRUCIBLE_BRICK_FLOOR` (0.25). Flag only: the band does not change. COIN rows are not flagged (e.g. `git_v2_overheating_grok_vector`, Brick 5 = 0, stays as is), and no species-table row is PATIENT with a Crucible brick under 0.25, so no current result changes. *Decision for Jarrod:* should PATIENT require a per-brick floor (all five, or only Bricks 2 and 5), should COIN need at least two non-zero Crucible bricks, and should table rows record real per-brick Crucible values instead of one value spread evenly?
+- **Overlaps:** P2 (brick grading), P10 (how the Crucible is counted), P13 (inputs with no test), P20 (consistency rows vs real anchors).
+- **Size:** Small (patched as a flag), with a gating decision recorded.
+- **Status:** Flag patched on pif-3.6-draft. Per-brick floor recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 14 2026.
 
 ---
 
