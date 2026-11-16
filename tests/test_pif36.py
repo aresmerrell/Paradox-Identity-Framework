@@ -985,3 +985,47 @@ class TestP38PatientCrucibleGap(unittest.TestCase):
         rows = rows["rows"] if isinstance(rows, dict) else rows
         for row in rows:
             self.assertNotIn("PATIENT_CRUCIBLE_GAP", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP39NoBodyCoinNoCrucible(unittest.TestCase):
+    def _row(self, crucible, sky=None):
+        import json
+        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        r = dict([x for x in rows if x["id"] == "v21_interrupt_messy_no_body"][0])
+        r["crucible"] = crucible
+        if sky is not None:
+            r["sky_scraper"] = sky
+        return r
+
+    def test_all_zero_bricks_still_coin_but_flagged(self):
+        r = pif36.score_row(self._row([0.0] * 5, [0.0] * 15))
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("NO_BODY_COIN_NO_CRUCIBLE", r.flags_36)
+
+    def test_just_below_floor_flagged(self):
+        r = pif36.score_row(self._row([0.14] * 5))
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("NO_BODY_COIN_NO_CRUCIBLE", r.flags_36)
+
+    def test_at_floor_not_flagged(self):
+        r = pif36.score_row(self._row([0.15] * 5))
+        self.assertNotIn("NO_BODY_COIN_NO_CRUCIBLE", r.flags_36)
+
+    def test_no_body_empty_not_flagged(self):
+        r = self._row([0.0] * 5)
+        r["interrupt_evidence"] = False
+        res = pif36.score_row(r)
+        self.assertEqual(res.band, "EMPTY")
+        self.assertNotIn("NO_BODY_COIN_NO_CRUCIBLE", res.flags_36)
+
+    def test_stable_35_band_unchanged(self):
+        r = self._row([0.0] * 5, [0.0] * 15)
+        self.assertEqual(pif35.score_row(r).band, "COIN")
+
+    def test_no_table_row_flagged(self):
+        import json
+        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        for row in rows:
+            self.assertNotIn("NO_BODY_COIN_NO_CRUCIBLE", pif36.score_row(row).flags_36, row["id"])

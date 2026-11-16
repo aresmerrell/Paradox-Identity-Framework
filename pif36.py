@@ -290,6 +290,7 @@ def prepare_residue_series(series, time_unit=None, clock=None):
 CONTROL_SHARED_TOL = 0.05
 CONTROL_FLAT_TOL = 1e-9     # P36: control spread at or below this counts as perfectly flat
 CRUCIBLE_BRICK_FLOOR = 0.25  # P38: a PATIENT row with any single Crucible brick below this is flagged
+NO_BODY_CRUCIBLE_MIN = C_ADJ_EMPTY_MAX  # P39: a no-body COIN row with raw Crucible sum below this (0.75) is flagged
 
 
 def check_control(series_h, control, time_unit, context):
@@ -766,6 +767,16 @@ def _score_one(bricks, cost_ratio, protects_continuity, costable_self, interrupt
         # P37: on the costable-self path a MEASURED clean reset (NONE) or instant reset gets the same
         # COIN as a row that was never measured (UNKNOWN). Measured absence of a mark is evidence,
         # not missing data. Flag only: band unchanged (a residue bar for COIN is a decision for Jarrod).
+        # P39: the no-costable-self path never looks at the bricks (or the cost ratio), so a no-body row
+        # with an empty Crucible still reaches COIN on residue + interrupt evidence alone, while a
+        # costable-self row needs C_adj >= 0.75. Flag only: band unchanged (a Crucible floor for
+        # no-body COIN is a decision for Jarrod).
+        if not costable_self and c < NO_BODY_CRUCIBLE_MIN:
+            flags36.append("NO_BODY_COIN_NO_CRUCIBLE")
+            notes.append(f"3.6 P39: no-body COIN with raw Crucible sum C = {c:g} < {NO_BODY_CRUCIBLE_MIN} "
+                         "(the floor a costable-self row must clear even after the facade penalty). On this path "
+                         "the band rests on residue and interrupt evidence alone; the bricks are never checked. "
+                         "Flag only: band unchanged.")
         if costable_self and status in ("NONE", "INSTANT"):
             flags36.append("RESIDUE_ABSENT_COIN")
             notes.append(f"3.6 P37: residue was measured and came back {status} "
