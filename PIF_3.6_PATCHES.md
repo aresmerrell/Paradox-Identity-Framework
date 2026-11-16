@@ -67,6 +67,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P36 | A perfectly flat (typed-in) control run passes P31 by construction | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); require-a-real-control rule recorded — for Jarrod's review |
 | P37 | A measured clean or instant reset still scores COIN, exactly like no measurement | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); measured-absence gate recorded — for Jarrod's review |
 | P38 | PATIENT gates on the Crucible sum, so one Crucible brick at 0 (e.g. minimal self) is paid for by the others | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); per-brick floor recorded — for Jarrod's review |
+| P39 | A system with no costable self reaches COIN with every brick at 0; the bricks are never checked on that path | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); Crucible floor for no-body COIN recorded — for Jarrod's review |
 
 ---
 
@@ -411,6 +412,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched as a flag), with a gating decision recorded.
 - **Status:** Flag patched on pif-3.6-draft. Per-brick floor recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 14 2026.
+
+## P39. A system with no costable self reaches COIN with every brick at 0
+- **Problem:** On the no-costable-self path the band is decided by residue (VALID Δ₀ ≥ 0.35) and the `interrupt_evidence` yes/no alone. The 20 bricks and the cost ratio are never looked at. A costable-self row must clear C_adj ≥ 0.75 to leave EMPTY, but a no-body row has no Crucible floor at all. Concrete demo: `v21_interrupt_messy_no_body` with **all 20 bricks set to 0** (C = 0, S = 0, 0.00%) still scores **COIN** in both 3.5 and the 3.6 draft, and it stays COIN with cost ratio 0 (ψ = 1, full facade).
+- **Why it matters:** The Crucible is the framework's definition of what a self is made of. A system graded as having none of it can still be granted COIN standing on a decaying number plus one yes/no answer, which makes the no-body COIN path the one place where the bricks, the main thing raters grade, carry zero weight. It also hides behind P16: the result shows "n/a (no-body COIN)" instead of 0%, so a reader never sees that the Crucible was empty.
+- **Proposed fix:** *Small piece (done):* `pif36` adds a `NO_BODY_COIN_NO_CRUCIBLE` flag and a note when a no-costable-self row is COIN while its raw Crucible sum C is below `NO_BODY_CRUCIBLE_MIN` (0.75, the same number as the costable-self EMPTY floor, applied before the facade penalty because ψ is near 1 on almost every no-body row). Flag only: the band does not change. The only no-body COIN row in the species table has C = 2.0, so no current result changes. *Decision for Jarrod:* should no-body COIN require raw C ≥ 0.75 (or some other Crucible floor), so that a system graded with an empty Crucible stays EMPTY whatever its residue?
+- **Overlaps:** P13 (the yes/no inputs), P16 (no-body percentage shown as n/a), P35 (self-reported residue on the same path), P38 (per-brick Crucible floor on the PATIENT side).
+- **Size:** Small (patched as a flag), with a gating decision recorded.
+- **Status:** Flag patched on pif-3.6-draft. Crucible floor for no-body COIN recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 15 2026.
 
 ---
 
