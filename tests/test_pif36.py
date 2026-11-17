@@ -1029,3 +1029,33 @@ class TestP39NoBodyCoinNoCrucible(unittest.TestCase):
         rows = rows["rows"] if isinstance(rows, dict) else rows
         for row in rows:
             self.assertNotIn("NO_BODY_COIN_NO_CRUCIBLE", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP40CoverageGap(unittest.TestCase):
+    """P40: most of the fitted decay inside one unobserved gap is flagged (flag only)."""
+
+    BRICKS = [1.0] * 5 + [0.9] * 15
+    STAGED = [[0, 0.80], [1, 0.78], [2, 0.76], [48, 0.12], [50, 0.11]]
+
+    def test_staged_late_reading_patient_but_flagged(self):
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=self.STAGED, residue_context="post_loss")
+        self.assertEqual(r.band, "PATIENT")
+        self.assertIn("RESIDUE_COVERAGE_GAP", r.flags_36)
+        self.assertGreater(r.residue["max_gap_drop_frac"], pif36.GAP_DROP_FRAC)
+        self.assertEqual(r.residue["max_gap_hours"], [2.0, 48.0])
+
+    def test_filled_gap_not_flagged(self):
+        s = self.STAGED[:3] + [[6, 0.63], [12, 0.50], [24, 0.31], [36, 0.19]] + self.STAGED[3:]
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=s, residue_context="post_loss")
+        self.assertNotIn("RESIDUE_COVERAGE_GAP", r.flags_36)
+
+    def test_stable_35_band_unchanged(self):
+        r = pif35.score(self.BRICKS, 2.0, True, True, residue_series=self.STAGED, residue_context="post_loss")
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        import json
+        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        for row in rows:
+            self.assertNotIn("RESIDUE_COVERAGE_GAP", pif36.score_row(row).flags_36, row["id"])

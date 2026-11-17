@@ -291,6 +291,7 @@ CONTROL_SHARED_TOL = 0.05
 CONTROL_FLAT_TOL = 1e-9     # P36: control spread at or below this counts as perfectly flat
 CRUCIBLE_BRICK_FLOOR = 0.25  # P38: a PATIENT row with any single Crucible brick below this is flagged
 NO_BODY_CRUCIBLE_MIN = C_ADJ_EMPTY_MAX  # P39: a no-body COIN row with raw Crucible sum below this (0.75) is flagged
+GAP_DROP_FRAC = 0.75        # P40: one unobserved gap holding more than this share of the fitted drop is flagged
 
 
 def check_control(series_h, control, time_unit, context):
@@ -507,6 +508,23 @@ def fit_residue(series, context: str = "interrupt") -> dict:
             d["info_flags"].append("RESIDUE_MULTI_TIMESCALE")
             d["notes"].append(f"3.6 P19: late samples sit {sum(excess) / len(excess):.3f} above the single-lambda fit on average: "
                               "likely a fast drop plus a slow residual; one lambda understates the lasting mark.")
+        # P40: the fit can pass every check while most of the decay happens between two readings
+        # (e.g. readings at 0, 1, 2 h and then 48 h). Nothing was observed in that gap, so a fast
+        # reset followed by a staged late reading looks the same as a real decay. Flag only.
+        dts = sorted(set(float(t) for t, _ in series))
+        curve = lambda t: fit.delta_0 * math.exp(-lam * t)
+        total_drop = curve(dts[0]) - curve(dts[-1])
+        if len(dts) >= 2 and total_drop > 0:
+            gd, ga, gb = max((curve(a) - curve(b), a, b) for a, b in zip(dts, dts[1:]))
+            frac = gd / total_drop
+            d["max_gap_drop_frac"] = round(frac, 4)
+            d["max_gap_hours"] = [ga, gb]
+            if frac > GAP_DROP_FRAC:
+                d["info_flags"].append("RESIDUE_COVERAGE_GAP")
+                d["notes"].append(
+                    f"3.6 P40: {frac:.0%} of the fitted decay happens between the readings at {ga} h and "
+                    f"{gb} h, with nothing measured in between; the shape of the decay there is assumed, "
+                    "not observed. Flag only: band unchanged.")
         # P21: half-life as a secondary signal.
         if hl is not None and math.isfinite(hl):
             d["notes"].append(f"3.6 P21: residue half-life {hl} h (secondary signal; only Delta_0 gates PATIENT).")
