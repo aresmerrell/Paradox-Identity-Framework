@@ -68,6 +68,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P37 | A measured clean or instant reset still scores COIN, exactly like no measurement | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); measured-absence gate recorded — for Jarrod's review |
 | P38 | PATIENT gates on the Crucible sum, so one Crucible brick at 0 (e.g. minimal self) is paid for by the others | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); per-brick floor recorded — for Jarrod's review |
 | P39 | A system with no costable self reaches COIN with every brick at 0; the bricks are never checked on that path | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); Crucible floor for no-body COIN recorded — for Jarrod's review |
+| P40 | Most of the decay can happen between two readings, with nothing measured in that gap | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); sampling-coverage rule recorded — for Jarrod's review |
 
 ---
 
@@ -421,6 +422,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched as a flag), with a gating decision recorded.
 - **Status:** Flag patched on pif-3.6-draft. Crucible floor for no-body COIN recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 15 2026.
+
+## P40. Most of the decay can happen between two readings, with nothing measured in that gap
+- **Problem:** The residue checks look at how many readings there are (P24, P27), how well the curve fits (P7, P33), where the first reading is (P8, P25) and whether there is a reading near 48 h (P30). None of them asks whether the decay itself was watched. Concrete demo: a post-loss series with readings at **0, 1, 2, 48 and 50 h** (0.80, 0.78, 0.76, 0.12, 0.11) fits a decay with R² 0.9995 and scores **PATIENT** with no 3.6 flag. About 90% of the fitted drop happens between 2 h and 48 h, where nothing was measured.
+- **Why it matters:** A system that resets almost at once after 2 h and then shows a staged or coincidental mark at 48 h produces exactly the same five numbers as one that really decays over two days. The decay curve in the gap is assumed, not seen, and the curve is what PATIENT and Rule 4 rest on. It also hides fast-drop-then-plateau shapes (P19), because there are no readings where the drop happens.
+- **Proposed fix:** *Small piece (done):* `pif36.fit_residue` works out what share of the fitted drop (first reading to last reading) falls between each pair of neighbouring readings, reports the largest as `max_gap_drop_frac` with its `max_gap_hours`, and adds an info flag `RESIDUE_COVERAGE_GAP` with a note when one gap holds more than `GAP_DROP_FRAC` (75%). Flag only: the band does not change. The largest share in the species table is 59% (`grok_psychopath`, 0–1 h), so no current result changes. Adding readings at 6, 12, 24 and 36 h to the demo brings the largest gap down to 27%. *Decision for Jarrod:* should this block PATIENT like the other fit-quality flags, and should the measurement stub (P17) require a sampling plan, for example at least one reading per half-life until the mark is below detect?
+- **Overlaps:** P19 (fast drop plus slow residual), P27 (bunched readings), P30 (reading near 48 h), P17 (measurement protocol).
+- **Size:** Small (patched as a flag), with a gating decision recorded.
+- **Status:** Flag patched on pif-3.6-draft. Sampling-coverage rule recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 16 2026.
 
 ---
 
