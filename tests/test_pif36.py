@@ -1059,3 +1059,40 @@ class TestP40CoverageGap(unittest.TestCase):
         rows = rows["rows"] if isinstance(rows, dict) else rows
         for row in rows:
             self.assertNotIn("RESIDUE_COVERAGE_GAP", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP41InterruptDose(unittest.TestCase):
+    """P41: a residue reported after stepping the interrupt dose up is flagged (flag only)."""
+
+    def _dog(self, dose):
+        row = dict(next(r for r in ROWS if r["id"] == "grok_dog"))
+        row["interrupt_dose"] = dose
+        return row
+
+    def test_escalated_dose_flagged_band_unchanged(self):
+        base = pif36.score_row(next(r for r in ROWS if r["id"] == "grok_dog"))
+        r = pif36.score_row(self._dog({"level": "full owner absence, 3 days", "levels_tried": 3}))
+        self.assertIn("DOSE_ESCALATED", r.flags_36)
+        self.assertEqual(r.band, base.band)
+
+    def test_pre_declared_or_single_level_not_flagged(self):
+        for d in ({"level": "standard", "levels_tried": 3, "pre_declared": True},
+                  {"level": "standard"}):
+            r = pif36.score_row(self._dog(d))
+            self.assertNotIn("DOSE_ESCALATED", r.flags_36)
+            self.assertTrue(any("P41" in n for n in r.notes))
+
+    def test_bad_dose_rejected(self):
+        for d in ("hard", {"levels_tried": 2}, {"level": "x", "levels_tried": 0},
+                  {"level": "x", "levels_tried": True}, {"level": "x", "pre_declared": "yes"},
+                  {"level": "x", "extra": 1}):
+            with self.assertRaises(ValueError):
+                pif36.check_interrupt_dose(d)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("DOSE_ESCALATED", pif36.score_row(row).flags_36, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        row = self._dog({"level": "x", "levels_tried": 4})
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(next(r for r in ROWS if r["id"] == "grok_dog")).band)

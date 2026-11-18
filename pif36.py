@@ -209,6 +209,39 @@ def check_trial_log(trial_log) -> Tuple[List[str], List[str]]:
         "Picking the best of several noisy runs pushes the result up; report all runs, their median, or a run chosen in advance."]
 
 
+# --- P41: interrupt dose (quality flag) -----------------------------------------
+# Optional row key "interrupt_dose": {"level": str, "levels_tried": int, "pre_declared": bool}.
+# Residue size depends on how hard the interrupt was, and nothing in 3.5 records it.
+# An experimenter can step the interrupt up until Delta_0 clears 0.35 or 0.65. When more
+# than one dose level was tried and the reported one was not fixed in advance, flag
+# DOSE_ESCALATED (flag only, the band does not change). Rows without the key: untouched.
+def check_interrupt_dose(dose) -> Tuple[List[str], List[str]]:
+    """P41: return (flags, notes) saying whether the interrupt dose could have been escalated to a result."""
+    if not dose:
+        return [], []
+    if not isinstance(dose, dict):
+        raise ValueError("interrupt_dose must be a dict {level, levels_tried, pre_declared}")
+    for k in dose:
+        if k not in ("level", "levels_tried", "pre_declared"):
+            raise ValueError(f"interrupt_dose key must be level, levels_tried or pre_declared, got {k!r}")
+    level = dose.get("level")
+    if not isinstance(level, str) or not level.strip():
+        raise ValueError("interrupt_dose needs a non-empty 'level' describing the interrupt used")
+    n = dose.get("levels_tried", 1)
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ValueError(f"interrupt_dose['levels_tried'] must be a whole number >= 1, got {n!r}")
+    pre = dose.get("pre_declared", False)
+    if not isinstance(pre, bool):
+        raise ValueError(f"interrupt_dose['pre_declared'] must be true or false, got {pre!r}")
+    if n == 1 or pre:
+        how = "fixed in advance" if pre else "the only level tried"
+        return [], [f"3.6 P41: interrupt dose {level!r} was {how}."]
+    return ["DOSE_ESCALATED"], [
+        f"3.6 P41: {n} interrupt dose levels were tried and the reported one ({level!r}) was not fixed in advance. "
+        "A harder interrupt leaves a bigger mark, so stepping the dose up until Delta_0 clears a gate inflates the band; "
+        "report the pre-declared dose, or the full dose-response."]
+
+
 # --- P29: residue time unit / wall clock (quality flags) ------------------------
 # Optional row keys:
 #   residue_time_unit: hours | minutes | days | turns | sessions | tokens
@@ -952,7 +985,7 @@ def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
-    residue_control_series (P31), residue_event (P32)."""
+    residue_control_series (P31), residue_event (P32), interrupt_dose (P41)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -1004,6 +1037,10 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(tflags)
     r.flags.extend(tflags)
     r.notes.extend(tnotes)
+    dflags, dnotes = check_interrupt_dose(row.get("interrupt_dose"))
+    r.flags_36.extend(dflags)
+    r.flags.extend(dflags)
+    r.notes.extend(dnotes)
     return r
 
 
