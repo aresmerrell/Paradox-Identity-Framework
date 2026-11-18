@@ -69,6 +69,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P38 | PATIENT gates on the Crucible sum, so one Crucible brick at 0 (e.g. minimal self) is paid for by the others | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); per-brick floor recorded — for Jarrod's review |
 | P39 | A system with no costable self reaches COIN with every brick at 0; the bricks are never checked on that path | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); Crucible floor for no-body COIN recorded — for Jarrod's review |
 | P40 | Most of the decay can happen between two readings, with nothing measured in that gap | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); sampling-coverage rule recorded — for Jarrod's review |
+| P41 | Residue size depends on how hard the interrupt was, and the dose can be stepped up until Δ₀ clears a gate | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); standard dose ladder / dose-response rule recorded — for Jarrod's review |
 
 ---
 
@@ -431,6 +432,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched as a flag), with a gating decision recorded.
 - **Status:** Flag patched on pif-3.6-draft. Sampling-coverage rule recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 16 2026.
+
+## P41. The interrupt dose is never recorded, so it can be stepped up until the mark is big enough
+- **Problem:** Δ₀ measures how far an interrupt pushed the system, but how hard the interrupt was is never recorded or normalised. A two-hour owner absence and a three-day one, or a mild prompt-injection and a full context wipe, go into the same 0.35 / 0.65 gates. Nothing stops an experimenter from trying a mild interrupt, then a harder one, then a harder one, and reporting the first dose whose residue clears 0.65. Concrete demo: the `grok_dog` row is unchanged at **PATIENT** whether its residue came from the first dose tried or the fourth; 3.5 has no field that could tell them apart.
+- **Why it matters:** A bigger push leaves a bigger mark in almost any system, including a thermostat, so a gate on raw Δ₀ partly measures the experimenter's choice of dose rather than the system. It is a different route from P28 (best of several *repeat* runs at one dose): here every run can be honestly reported, but the dose itself was shopped. It also breaks comparisons between rows, because the species table never says the interrupts were of similar size.
+- **Proposed fix:** *Small piece (done):* optional row key `interrupt_dose` = `{level, levels_tried, pre_declared}` and `pif36.check_interrupt_dose`. When more than one dose level was tried and the reported one was not fixed in advance, `score_row` adds flag `DOSE_ESCALATED` with a note; a single level or a pre-declared one gets an info note only. Flag only: the band does not change, rows without the key are untouched, and no species-table row is flagged. *Decision for Jarrod:* should the measurement stub (P17) define a standard dose ladder for each kind of system, and should PATIENT need a dose-response (the mark grows with dose and still decays) rather than one Δ₀ at one dose? Should `DOSE_ESCALATED` block PATIENT like `RUNS_SELECTED`?
+- **Overlaps:** P28 (best-of-N runs), P17 (measurement protocol), P22 (binding inputs to one system), P32 (self-declared event label).
+- **Size:** Small (patched as a flag), with a gating decision recorded.
+- **Status:** Flag patched on pif-3.6-draft. Standard dose ladder / dose-response rule recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 17 2026.
 
 ---
 
