@@ -1096,3 +1096,52 @@ class TestP41InterruptDose(unittest.TestCase):
     def test_stable_35_ignores_key(self):
         row = self._dog({"level": "x", "levels_tried": 4})
         self.assertEqual(pif35.score_row(row).band, pif35.score_row(next(r for r in ROWS if r["id"] == "grok_dog")).band)
+
+
+class TestP42ResidueScale(unittest.TestCase):
+    """P42: residue normalised by its own peak (or an unstated divisor) is flagged (flag only)."""
+
+    def _row(self, rid, scale=None, self_norm=False):
+        row = dict(next(r for r in ROWS if r["id"] == rid))
+        if self_norm:
+            peak = max(y for _, y in row["residue_series"])
+            row["residue_series"] = [[t, y / peak] for t, y in row["residue_series"]]
+        if scale is not None:
+            row["residue_scale"] = scale
+        return row
+
+    def test_self_normalised_series_moves_band_in_35_and_is_flagged(self):
+        # the loophole: dividing by the series' own peak lifts Overheating Grok and the octopus to PATIENT
+        for rid in ("readme_overheating_grok", "grok_octopus"):
+            self.assertEqual(pif35.score_row(self._row(rid)).band, "COIN")
+            self.assertEqual(pif35.score_row(self._row(rid, self_norm=True)).band, "PATIENT")
+            r = pif36.score_row(self._row(rid, {"metric": "embedding distance", "max_basis": "observed_max"}, self_norm=True))
+            self.assertIn("RESIDUE_AT_CEILING", r.flags_36)
+            self.assertIn("RESIDUE_SCALE_SELF_CHOSEN", r.flags_36)
+            self.assertEqual(r.band, "PATIENT")  # flag only
+
+    def test_unstated_or_not_pre_declared_flagged(self):
+        for sc in ({"metric": "m"}, {"metric": "m", "max_basis": "battery_max"},
+                   {"metric": "m", "max_basis": "unstated", "pre_declared": True}):
+            self.assertIn("RESIDUE_SCALE_SELF_CHOSEN", pif36.score_row(self._row("grok_dog", sc)).flags_36)
+
+    def test_battery_max_pre_declared_not_flagged(self):
+        r = pif36.score_row(self._row("grok_dog", {"metric": "m", "max_basis": "battery_max", "pre_declared": True}))
+        self.assertNotIn("RESIDUE_SCALE_SELF_CHOSEN", r.flags_36)
+        self.assertTrue(any("P42" in n for n in r.notes))
+
+    def test_bad_scale_rejected(self):
+        for sc in ("x", {"max_basis": "battery_max"}, {"metric": " "}, {"metric": "m", "max_basis": "peak"},
+                   {"metric": "m", "pre_declared": "yes"}, {"metric": "m", "extra": 1}):
+            with self.assertRaises(ValueError):
+                pif36.check_residue_scale(sc, None)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            self.assertNotIn("RESIDUE_AT_CEILING", f, row["id"])
+            self.assertNotIn("RESIDUE_SCALE_SELF_CHOSEN", f, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        row = self._row("grok_dog", {"metric": "m", "max_basis": "observed_max"})
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog")).band)

@@ -242,6 +242,63 @@ def check_interrupt_dose(dose) -> Tuple[List[str], List[str]]:
         "report the pre-declared dose, or the full dose-response."]
 
 
+# --- P42: residue scale / normalisation (quality flags) -----------------------
+# Residue values are on a 0-1 scale, but the gates (0.35, 0.65) are absolute and the
+# divisor that puts a raw deviation onto that scale is chosen by the experimenter.
+# Dividing a series by its own largest reading always puts the peak at 1.0:
+# readme_overheating_grok (peak 0.5) and grok_octopus (peak 0.55) both go COIN -> PATIENT.
+# Optional row key "residue_scale": {"metric": str, "max_basis": battery_max | observed_max
+# | unstated, "pre_declared": bool}. Flag RESIDUE_SCALE_SELF_CHOSEN when the divisor came
+# from the data (observed_max), was not stated, or was not fixed in advance. Independently,
+# info flag RESIDUE_AT_CEILING when a reading sits at the very top of the scale (>= 0.999),
+# the fingerprint of a series normalised to its own peak. Flags only: the band does not change.
+RESIDUE_SCALE_BASES = ("battery_max", "observed_max", "unstated")
+RESIDUE_CEILING = 0.999
+
+
+def check_residue_scale(scale, series) -> Tuple[List[str], List[str]]:
+    """P42: return (flags, notes) on how the residue readings were put onto the 0-1 scale."""
+    flags: List[str] = []
+    notes: List[str] = []
+    if series:
+        peak = max(float(y) for _, y in series)
+        if peak >= RESIDUE_CEILING:
+            flags.append("RESIDUE_AT_CEILING")
+            notes.append(f"3.6 P42: a residue reading sits at the top of the 0-1 scale ({peak:g}). "
+                         "That is what a series divided by its own largest reading looks like; check that the "
+                         "divisor is the battery's largest possible deviation, fixed in advance.")
+    if not scale:
+        return flags, notes
+    if not isinstance(scale, dict):
+        raise ValueError("residue_scale must be a dict {metric, max_basis, pre_declared}")
+    for k in scale:
+        if k not in ("metric", "max_basis", "pre_declared"):
+            raise ValueError(f"residue_scale key must be metric, max_basis or pre_declared, got {k!r}")
+    metric = scale.get("metric")
+    if not isinstance(metric, str) or not metric.strip():
+        raise ValueError("residue_scale needs a non-empty 'metric' naming how deviation was measured")
+    basis = scale.get("max_basis", "unstated")
+    if basis not in RESIDUE_SCALE_BASES:
+        raise ValueError(f"residue_scale['max_basis'] must be one of {RESIDUE_SCALE_BASES}, got {basis!r}")
+    pre = scale.get("pre_declared", False)
+    if not isinstance(pre, bool):
+        raise ValueError(f"residue_scale['pre_declared'] must be true or false, got {pre!r}")
+    if basis == "battery_max" and pre:
+        notes.append(f"3.6 P42: residue metric {metric!r} divided by the battery's largest possible deviation, fixed in advance.")
+        return flags, notes
+    why = []
+    if basis == "observed_max":
+        why.append("the divisor is the largest deviation actually observed, so the peak reading is 1.0 by construction")
+    elif basis == "unstated":
+        why.append("the divisor is not stated")
+    if not pre:
+        why.append("the metric and divisor were not fixed in advance")
+    flags.append("RESIDUE_SCALE_SELF_CHOSEN")
+    notes.append(f"3.6 P42: residue metric {metric!r}: " + "; ".join(why) + ". "
+                 "The 0.35 and 0.65 gates are absolute, so a smaller divisor inflates Delta_0 and can move the band.")
+    return flags, notes
+
+
 # --- P29: residue time unit / wall clock (quality flags) ------------------------
 # Optional row keys:
 #   residue_time_unit: hours | minutes | days | turns | sessions | tokens
@@ -985,7 +1042,8 @@ def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
-    residue_control_series (P31), residue_event (P32), interrupt_dose (P41)."""
+    residue_control_series (P31), residue_event (P32), interrupt_dose (P41),
+    residue_scale (P42)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -1041,6 +1099,10 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(dflags)
     r.flags.extend(dflags)
     r.notes.extend(dnotes)
+    sflags, snotes = check_residue_scale(row.get("residue_scale"), row.get("residue_series"))
+    r.flags_36.extend(sflags)
+    r.flags.extend(sflags)
+    r.notes.extend(snotes)
     return r
 
 
