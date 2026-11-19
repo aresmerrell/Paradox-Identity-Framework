@@ -70,6 +70,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P39 | A system with no costable self reaches COIN with every brick at 0; the bricks are never checked on that path | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); Crucible floor for no-body COIN recorded — for Jarrod's review |
 | P40 | Most of the decay can happen between two readings, with nothing measured in that gap | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); sampling-coverage rule recorded — for Jarrod's review |
 | P41 | Residue size depends on how hard the interrupt was, and the dose can be stepped up until Δ₀ clears a gate | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); standard dose ladder / dose-response rule recorded — for Jarrod's review |
+| P42 | The divisor that puts residue onto the 0–1 scale is the experimenter's choice; dividing by the series' own peak lifts COIN rows to PATIENT | Small (decision recorded) | Flags patched on pif-3.6-draft (band unchanged); pre-declared battery-maximum rule recorded — for Jarrod's review |
 
 ---
 
@@ -441,6 +442,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched as a flag), with a gating decision recorded.
 - **Status:** Flag patched on pif-3.6-draft. Standard dose ladder / dose-response rule recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 17 2026.
+
+## P42. Residue can be put on the 0–1 scale by its own peak, which lifts COIN rows to PATIENT
+- **Problem:** Δ₀ is gated at fixed lines (0.35, 0.65) on a 0–1 scale, but the divisor that turns a raw deviation into a 0–1 residue is chosen by whoever runs the test. The measurement stub says to divide by "the largest possible deviation on that battery", yet nothing in the code records the metric or the divisor. Dividing a series by its own largest reading always puts the peak at 1.0. Concrete demo (checked Nov 18 2026 with `pif35.py`): self-normalising the residue series moves **`readme_overheating_grok`** (peak 0.50), `git_v2_overheating_grok_vector`, `v14_whole_hive` and `grok_octopus` (peak 0.55) from **COIN to PATIENT**, with no 3.5 flag and no 3.6 flag before this patch.
+- **Why it matters:** Overheating Grok is meant to stay COIN unless a real measurement shows residue at 0.65 or higher (Jarrod's Oct 28 decision); a change of divisor gets it there without any new measurement. It is a different route from P41 (the push was harder) and P23/P31 (noise or shared drift): here the system and the push are unchanged and only the units moved. It also makes rows incomparable, because two experimenters with different divisors put the same mark on different sides of 0.65.
+- **Proposed fix:** *Small piece (done):* optional row key `residue_scale` = `{metric, max_basis, pre_declared}` with `max_basis` one of `battery_max`, `observed_max`, `unstated`, and `pif36.check_residue_scale`. `score_row` adds `RESIDUE_SCALE_SELF_CHOSEN` with a note when the divisor is the observed maximum, is not stated, or was not fixed in advance; a pre-declared battery maximum gets an info note only. Independently of the key, an info flag `RESIDUE_AT_CEILING` is added when any reading is at the top of the scale (≥ 0.999), the fingerprint of a self-normalised series. Flags only: the band does not change, rows without the key are untouched, and no species-table row is flagged (highest reading in the table is 0.85). *Decision for Jarrod:* should the measurement stub (P17) require the metric and battery maximum to be fixed before the first interrupt, and should `RESIDUE_SCALE_SELF_CHOSEN` (or a reading at the ceiling) block PATIENT like the other measurement-quality flags?
+- **Overlaps:** P17 (measurement protocol, which defines the residue value), P41 (interrupt dose), P23 / P31 (noise and control), P15 (values above 1 are clamped and flagged; a value of exactly 1.0 was not).
+- **Size:** Small (patched as flags), with a gating decision recorded.
+- **Status:** Flags patched on pif-3.6-draft. Pre-declared battery-maximum rule recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 18 2026.
 
 ---
 
