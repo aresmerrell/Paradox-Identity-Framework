@@ -71,6 +71,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P40 | Most of the decay can happen between two readings, with nothing measured in that gap | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); sampling-coverage rule recorded — for Jarrod's review |
 | P41 | Residue size depends on how hard the interrupt was, and the dose can be stepped up until Δ₀ clears a gate | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); standard dose ladder / dose-response rule recorded — for Jarrod's review |
 | P42 | The divisor that puts residue onto the 0–1 scale is the experimenter's choice; dividing by the series' own peak lifts COIN rows to PATIENT | Small (decision recorded) | Flags patched on pif-3.6-draft (band unchanged); pre-declared battery-maximum rule recorded — for Jarrod's review |
+| P43 | A second interrupt given before the first mark fades starts on the leftover; the sum is still one clean exponential, so Δ₀ is inflated with no fit warning | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); washout / baseline-return rule recorded — for Jarrod's review |
 
 ---
 
@@ -451,6 +452,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched as flags), with a gating decision recorded.
 - **Status:** Flags patched on pif-3.6-draft. Pre-declared battery-maximum rule recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 18 2026.
+
+## P43. Leftover from an earlier interrupt adds to the next one, and the fit cannot see it
+- **Problem:** Nothing records whether the system had already been interrupted shortly before the measured interrupt, or whether its baseline had come back. If the mark from an earlier interrupt has not faded, the new mark starts on top of it. When both decay at the same rate, the sum Δ₀·e^(−λt) + Δ₀·e^(−λ(t+gap)) is exactly one exponential with the same λ and a larger Δ₀, so R², span, sample count and every other fit check look perfect. Concrete demo (checked Nov 19 2026 with `pif35.py`): repeating the same interrupt 1 h or 2 h earlier moves **`readme_overheating_grok`** (Δ₀ 0.50 → 0.77 / 0.65) and **`grok_octopus`** (0.55 → 0.80 / 0.66) from **COIN to PATIENT**, status VALID, no 3.5 flag and no 3.6 flag before this patch. A 4 h gap stays COIN.
+- **Why it matters:** Back-to-back trials are the natural way to run a residue test (warm-up runs, retests, best-of-N under P28), so this can happen by accident as well as on purpose. It is a different route from P41 (the push was harder), P42 (the units moved) and P31 (a drift the control shares): here each push and the units are unchanged, and the extra mark is real but belongs to an earlier trial. It also makes retests disagree for no reason other than spacing.
+- **Proposed fix:** *Small piece (done):* optional row key `prior_interrupt` = `{hours_since_previous, pre_interrupt_level}` (`hours_since_previous` null = first interrupt the system received) and `pif36.check_prior_interrupt`. `score_row` adds `RESIDUE_CARRYOVER` with a note when the previous interrupt was less than 5 fitted half-lives earlier (`WASHOUT_HALF_LIVES`, about 97% of a mark gone), or when the reading just before the interrupt was already at or above 0.05 (`RESIDUE_DETECT_MIN`). First interrupts and washed-out gaps get an info note only. Flag only: the band does not change, rows without the key are untouched, and no species-table row is flagged. *Decision for Jarrod:* should the measurement stub (P17) require a washout of at least 5 half-lives (or a measured return to baseline) before every measured interrupt, with a pre-interrupt reading logged, and should `RESIDUE_CARRYOVER` block PATIENT like the other measurement-quality flags?
+- **Overlaps:** P28 (repeated runs), P41 (interrupt dose), P31 / P23 (control and noise), P17 (measurement protocol), P4 (timestamped readings).
+- **Size:** Small (patched as a flag), with a gating decision recorded.
+- **Status:** Flag patched on pif-3.6-draft. Washout / baseline-return rule recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 19 2026.
 
 ---
 
