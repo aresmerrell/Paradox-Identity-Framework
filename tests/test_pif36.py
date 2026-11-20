@@ -1145,3 +1145,53 @@ class TestP42ResidueScale(unittest.TestCase):
     def test_stable_35_ignores_key(self):
         row = self._row("grok_dog", {"metric": "m", "max_basis": "observed_max"})
         self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog")).band)
+
+
+class TestP43PriorInterruptCarryover(unittest.TestCase):
+    """P43: an interrupt given before the previous mark faded inflates Delta_0 (flag only)."""
+
+    def _row(self, rid, prior=None, gap=None):
+        row = dict(next(r for r in ROWS if r["id"] == rid))
+        if gap is not None:
+            fit = pif35.score_row(row).residue
+            d0, lam = fit["delta_0"], fit["lambda_per_hour"]
+            row["residue_series"] = [[t, round(y + d0 * math.exp(-lam * (t + gap)), 4)] for t, y in row["residue_series"]]
+        if prior is not None:
+            row["prior_interrupt"] = prior
+        return row
+
+    def test_carryover_moves_band_in_35_and_is_flagged(self):
+        for rid in ("readme_overheating_grok", "grok_octopus"):
+            self.assertEqual(pif35.score_row(self._row(rid)).band, "COIN")
+            self.assertEqual(pif35.score_row(self._row(rid, gap=1)).band, "PATIENT")
+            r = pif36.score_row(self._row(rid, {"hours_since_previous": 1}, gap=1))
+            self.assertIn("RESIDUE_CARRYOVER", r.flags_36)
+            self.assertEqual(r.band, "PATIENT")  # flag only
+
+    def test_pre_interrupt_level_flagged(self):
+        r = pif36.score_row(self._row("grok_dog", {"hours_since_previous": None, "pre_interrupt_level": 0.2}))
+        self.assertIn("RESIDUE_CARRYOVER", r.flags_36)
+
+    def test_first_or_washed_out_not_flagged(self):
+        for prior in ({"hours_since_previous": None}, {"hours_since_previous": 500, "pre_interrupt_level": 0.0}):
+            r = pif36.score_row(self._row("grok_dog", prior))
+            self.assertNotIn("RESIDUE_CARRYOVER", r.flags_36)
+            self.assertTrue(any("P43" in n for n in r.notes))
+
+    def test_bad_prior_rejected(self):
+        for p in ("x", {}, {"pre_interrupt_level": 0.1}, {"hours_since_previous": -1},
+                  {"hours_since_previous": "2"}, {"hours_since_previous": True},
+                  {"hours_since_previous": 2, "pre_interrupt_level": 1.5}, {"hours_since_previous": 2, "extra": 1}):
+            if p == {}:
+                self.assertEqual(pif36.check_prior_interrupt(p, None), ([], []))
+                continue
+            with self.assertRaises(ValueError):
+                pif36.check_prior_interrupt(p, None)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_CARRYOVER", pif36.score_row(row).flags_36, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        row = self._row("grok_dog", {"hours_since_previous": 0.5})
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog")).band)

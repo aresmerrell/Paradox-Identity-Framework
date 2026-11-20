@@ -1038,12 +1038,64 @@ def row_is_provisional(row: dict) -> bool:
                for v in row.get("provenance", {}).values())
 
 
+
+# --- P43: carry-over from an earlier interrupt (quality flag) ------------------
+# A second interrupt given before the first one's mark has faded starts on top of the
+# leftover. With the same decay rate the sum is again one clean exponential, so the fit
+# cannot see it: Delta_0 is simply inflated. readme_overheating_grok and grok_octopus
+# go COIN -> PATIENT in 3.5 when the measured interrupt follows an identical one 1-2 h
+# earlier. Optional row key "prior_interrupt": {"hours_since_previous": number or null
+# (null = first interrupt this system received), "pre_interrupt_level": 0-1 reading taken
+# just before the measured interrupt}. Flag RESIDUE_CARRYOVER when the gap is shorter than
+# WASHOUT_HALF_LIVES fitted half-lives, or the pre-interrupt reading is already at or
+# above RESIDUE_DETECT_MIN. Flag only: the band does not change. Rows without the key: untouched.
+WASHOUT_HALF_LIVES = 5.0   # ~97% of a mark gone after 5 half-lives
+
+
+def check_prior_interrupt(prior, residue) -> Tuple[List[str], List[str]]:
+    """P43: return (flags, notes) on whether an earlier interrupt's leftover could inflate Delta_0."""
+    if not prior:
+        return [], []
+    if not isinstance(prior, dict):
+        raise ValueError("prior_interrupt must be a dict {hours_since_previous, pre_interrupt_level}")
+    for k in prior:
+        if k not in ("hours_since_previous", "pre_interrupt_level"):
+            raise ValueError(f"prior_interrupt key must be hours_since_previous or pre_interrupt_level, got {k!r}")
+    if "hours_since_previous" not in prior:
+        raise ValueError("prior_interrupt needs 'hours_since_previous' (null if this was the first interrupt)")
+    gap = prior["hours_since_previous"]
+    if gap is not None and (isinstance(gap, bool) or not isinstance(gap, (int, float)) or not math.isfinite(gap) or gap < 0):
+        raise ValueError(f"prior_interrupt['hours_since_previous'] must be a number >= 0 or null, got {gap!r}")
+    level = prior.get("pre_interrupt_level")
+    if level is not None and (isinstance(level, bool) or not isinstance(level, (int, float)) or not 0.0 <= level <= 1.0):
+        raise ValueError(f"prior_interrupt['pre_interrupt_level'] must be in 0..1, got {level!r}")
+    reasons: List[str] = []
+    hl = (residue or {}).get("half_life_hours")
+    if gap is not None and hl is not None and math.isfinite(hl) and hl > 0:
+        if gap < WASHOUT_HALF_LIVES * hl:
+            left = 2.0 ** (-gap / hl)
+            reasons.append(f"the previous interrupt was {gap:g} h earlier, under {WASHOUT_HALF_LIVES:g} fitted half-lives "
+                           f"({WASHOUT_HALF_LIVES * hl:.3g} h); about {left:.0%} of an equal earlier mark would still be present")
+    if level is not None and level >= pif35.RESIDUE_DETECT_MIN:
+        reasons.append(f"the reading just before the interrupt was already {level:g} (>= {pif35.RESIDUE_DETECT_MIN})")
+    if reasons:
+        return ["RESIDUE_CARRYOVER"], [
+            "3.6 P43: " + "; ".join(reasons) + ". Leftover from an earlier interrupt adds to the new mark and, at the same "
+            "decay rate, the sum is still one clean exponential, so Delta_0 is inflated with no fit warning; wait out the "
+            "washout and check the baseline has returned before the measured interrupt."]
+    if gap is None:
+        return [], ["3.6 P43: this was the first interrupt the system received; no carry-over."]
+    if hl is None or not math.isfinite(hl):
+        return [], [f"3.6 P43: previous interrupt {gap:g} h earlier; no fitted half-life, so washout could not be checked."]
+    return [], [f"3.6 P43: previous interrupt {gap:g} h earlier, at least {WASHOUT_HALF_LIVES:g} fitted half-lives; no carry-over expected."]
+
+
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
     residue_control_series (P31), residue_event (P32), interrupt_dose (P41),
-    residue_scale (P42)."""
+    residue_scale (P42), prior_interrupt (P43)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -1103,6 +1155,10 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(sflags)
     r.flags.extend(sflags)
     r.notes.extend(snotes)
+    pflags, pnotes = check_prior_interrupt(row.get("prior_interrupt"), r.residue)
+    r.flags_36.extend(pflags)
+    r.flags.extend(pflags)
+    r.notes.extend(pnotes)
     return r
 
 
