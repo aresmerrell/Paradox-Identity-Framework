@@ -1195,3 +1195,61 @@ class TestP43PriorInterruptCarryover(unittest.TestCase):
     def test_stable_35_ignores_key(self):
         row = self._row("grok_dog", {"hours_since_previous": 0.5})
         self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog")).band)
+
+
+class TestP44ResidueTransform(unittest.TestCase):
+    """P44: a non-linear (e.g. square-root) transform of the residue readings lifts Delta_0 (flag only)."""
+
+    def _row(self, rid, transform=None, sqrt=False):
+        row = dict(next(r for r in ROWS if r["id"] == rid))
+        if sqrt:
+            row["residue_series"] = [[t, round(math.sqrt(y), 4)] for t, y in row["residue_series"]]
+        if transform is not None:
+            row["residue_transform"] = transform
+        return row
+
+    def test_sqrt_moves_band_in_35_and_is_flagged(self):
+        for rid in ("readme_overheating_grok", "git_v2_overheating_grok_vector", "v14_whole_hive", "grok_octopus"):
+            self.assertEqual(pif35.score_row(self._row(rid)).band, "COIN")
+            sq = pif35.score_row(self._row(rid, sqrt=True))
+            self.assertEqual(sq.band, "PATIENT")
+            self.assertEqual(sq.residue["status"], "VALID")
+            r = pif36.score_row(self._row(rid, {"kind": "sqrt"}, sqrt=True))
+            self.assertIn("RESIDUE_TRANSFORM_NONLINEAR", r.flags_36)
+            self.assertEqual(r.band, "PATIENT")  # flag only
+
+    def test_raw_scale_delta0_in_note(self):
+        r = pif36.score_row(self._row("readme_overheating_grok", {"kind": "sqrt"}, sqrt=True))
+        note = next(n for n in r.notes if "P44" in n)
+        self.assertIn("0.5000", note)  # 0.7071 ** 2
+
+    def test_power_and_unrecoverable_kinds(self):
+        r = pif36.score_row(self._row("grok_dog", {"kind": "power", "exponent": 0.75}))
+        self.assertIn("RESIDUE_TRANSFORM_NONLINEAR", r.flags_36)
+        for kind in ("log", "rank", "percentile", "other", "unstated"):
+            r = pif36.score_row(self._row("grok_dog", {"kind": kind}))
+            self.assertIn("RESIDUE_TRANSFORM_NONLINEAR", r.flags_36, kind)
+            self.assertTrue(any("cannot be recovered" in n for n in r.notes))
+
+    def test_linear_not_flagged(self):
+        for t in ({"kind": "linear", "pre_declared": True}, {"kind": "linear"},
+                  {"kind": "power", "exponent": 1, "pre_declared": True}):
+            r = pif36.score_row(self._row("grok_dog", t))
+            self.assertNotIn("RESIDUE_TRANSFORM_NONLINEAR", r.flags_36)
+            self.assertTrue(any("P44" in n for n in r.notes))
+
+    def test_bad_transform_rejected(self):
+        for t in ("sqrt", {"kind": "cube"}, {"kind": "power"}, {"kind": "power", "exponent": 0},
+                  {"kind": "power", "exponent": True}, {"kind": "sqrt", "exponent": 2},
+                  {"kind": "linear", "pre_declared": "yes"}, {"kind": "linear", "extra": 1}, {"pre_declared": True}):
+            with self.assertRaises(ValueError):
+                pif36.check_residue_transform(t, None)
+        self.assertEqual(pif36.check_residue_transform({}, None), ([], []))
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_TRANSFORM_NONLINEAR", pif36.score_row(row).flags_36, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        row = self._row("grok_dog", {"kind": "sqrt"})
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog")).band)

@@ -1090,12 +1090,75 @@ def check_prior_interrupt(prior, residue) -> Tuple[List[str], List[str]]:
     return [], [f"3.6 P43: previous interrupt {gap:g} h earlier, at least {WASHOUT_HALF_LIVES:g} fitted half-lives; no carry-over expected."]
 
 
+# --- P44: non-linear transform of the residue readings (quality flag) ----------
+# Delta_0 is gated at fixed lines (0.35, 0.65) on a 0-1 scale, but nothing records whether the
+# readings are the raw deviation or a transformed one (square root, log, rank, percentile...).
+# A power transform y -> y**p of an exact exponential is again an exact exponential
+# (Delta_0**p * exp(-p*lambda*t)), so every fit check stays clean while Delta_0 rises for p < 1
+# and the half-life grows by 1/p. Taking square roots moves readme_overheating_grok,
+# git_v2_overheating_grok_vector, v14_whole_hive and grok_octopus COIN -> PATIENT in 3.5.
+# Optional row key "residue_transform": {"kind": linear | sqrt | log | power | rank |
+# percentile | other | unstated, "exponent": number (kind "power" only), "pre_declared": bool}.
+# Flag RESIDUE_TRANSFORM_NONLINEAR for any kind other than linear (a power of exactly 1 counts
+# as linear), including unstated. Flag only: the band does not change. Rows without the key: untouched.
+RESIDUE_TRANSFORM_KINDS = ("linear", "sqrt", "log", "power", "rank", "percentile", "other", "unstated")
+
+
+def check_residue_transform(transform, residue) -> Tuple[List[str], List[str]]:
+    """P44: return (flags, notes) on whether the residue readings went through a non-linear transform."""
+    if not transform:
+        return [], []
+    if not isinstance(transform, dict):
+        raise ValueError("residue_transform must be a dict {kind, exponent, pre_declared}")
+    for k in transform:
+        if k not in ("kind", "exponent", "pre_declared"):
+            raise ValueError(f"residue_transform key must be kind, exponent or pre_declared, got {k!r}")
+    kind = transform.get("kind")
+    if kind not in RESIDUE_TRANSFORM_KINDS:
+        raise ValueError(f"residue_transform['kind'] must be one of {RESIDUE_TRANSFORM_KINDS}, got {kind!r}")
+    exp = transform.get("exponent")
+    if kind == "power":
+        if isinstance(exp, bool) or not isinstance(exp, (int, float)) or not math.isfinite(exp) or exp <= 0:
+            raise ValueError(f"residue_transform kind 'power' needs an 'exponent' > 0, got {exp!r}")
+    elif exp is not None:
+        raise ValueError("residue_transform['exponent'] is only used with kind 'power'")
+    pre = transform.get("pre_declared", False)
+    if not isinstance(pre, bool):
+        raise ValueError(f"residue_transform['pre_declared'] must be true or false, got {pre!r}")
+    if kind == "sqrt":
+        p = 0.5
+    elif kind == "power":
+        p = float(exp)
+    elif kind == "linear":
+        p = 1.0
+    else:
+        p = None
+    if p == 1.0:
+        if pre:
+            return [], ["3.6 P44: residue readings are the raw (linear) deviation, fixed in advance."]
+        return [], ["3.6 P44: residue readings are the raw (linear) deviation, but this was not fixed before the "
+                    "first interrupt (see P42 for the divisor)."]
+    d0 = (residue or {}).get("delta_0")
+    raw = ""
+    if p is not None and d0 is not None:
+        raw = (f" Undoing the power {p:g} puts this Delta_0 of {d0:g} at {d0 ** (1.0 / p):.4f} on the raw scale "
+               f"(and the half-life at {p:g}x the reported one).")
+    elif p is None:
+        raw = " The raw-scale Delta_0 cannot be recovered from the reported readings."
+    label = kind if kind != "power" else f"power {exp:g}"
+    when = "fixed in advance" if pre else "not fixed before the first interrupt"
+    return ["RESIDUE_TRANSFORM_NONLINEAR"], [
+        f"3.6 P44: residue readings went through a non-linear transform ({label}, {when}). A power transform of an "
+        "exponential is still a clean exponential, so the fit checks cannot see it, but Delta_0 is moved against the "
+        "fixed 0.35 / 0.65 lines and the half-life is stretched." + raw]
+
+
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
     residue_control_series (P31), residue_event (P32), interrupt_dose (P41),
-    residue_scale (P42), prior_interrupt (P43)."""
+    residue_scale (P42), prior_interrupt (P43), residue_transform (P44)."""
     r = score(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -1159,6 +1222,10 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(pflags)
     r.flags.extend(pflags)
     r.notes.extend(pnotes)
+    xflags, xnotes = check_residue_transform(row.get("residue_transform"), r.residue)
+    r.flags_36.extend(xflags)
+    r.flags.extend(xflags)
+    r.notes.extend(xnotes)
     return r
 
 
