@@ -72,6 +72,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 | P41 | Residue size depends on how hard the interrupt was, and the dose can be stepped up until Δ₀ clears a gate | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); standard dose ladder / dose-response rule recorded — for Jarrod's review |
 | P42 | The divisor that puts residue onto the 0–1 scale is the experimenter's choice; dividing by the series' own peak lifts COIN rows to PATIENT | Small (decision recorded) | Flags patched on pif-3.6-draft (band unchanged); pre-declared battery-maximum rule recorded — for Jarrod's review |
 | P43 | A second interrupt given before the first mark fades starts on the leftover; the sum is still one clean exponential, so Δ₀ is inflated with no fit warning | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); washout / baseline-return rule recorded — for Jarrod's review |
+| P44 | A non-linear transform of the residue readings (e.g. square root) is still a clean exponential but lifts Δ₀; it moves COIN rows to PATIENT | Small (decision recorded) | Flag patched on pif-3.6-draft (band unchanged); raw-linear-readings rule recorded — for Jarrod's review |
 
 ---
 
@@ -461,6 +462,15 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Size:** Small (patched as a flag), with a gating decision recorded.
 - **Status:** Flag patched on pif-3.6-draft. Washout / baseline-return rule recorded — for Jarrod's review.
 - **Source:** Athena audit, Nov 19 2026.
+
+## P44. A non-linear transform of the residue readings lifts Δ₀, and the fit cannot see it
+- **Problem:** Nothing records whether the residue readings are the raw deviation or a transformed one (square root, log, rank, percentile, any power). A power transform of an exact exponential is again an exact exponential, (Δ₀·e^(−λt))^p = Δ₀^p·e^(−pλt), so R², span, sample count and every other fit check stay clean. Because Δ₀ ≤ 1, any p < 1 raises Δ₀ (and stretches the half-life by 1/p), and p = ln 0.65 / ln Δ₀ puts any detectable Δ₀ on the PATIENT line. Concrete demo (checked Nov 20 2026 with `pif35.py`): taking the square root of each reading moves **`readme_overheating_grok`**, `git_v2_overheating_grok_vector`, `v14_whole_hive` (Δ₀ 0.50 → 0.71) and `grok_octopus` (0.55 → 0.74) from **COIN to PATIENT**, status VALID, no 3.5 flag and no 3.6 flag before this patch. A convex transform (p > 1) works the other way: p = 1.5 drops `grok_dog` (0.65 → 0.52) to COIN.
+- **Why it matters:** Square roots, logs and percentile ranks are common, defensible ways to report a behavioural deviation, so this can happen by accident as well as on purpose. It is a different route from P42 (a linear divisor; a pre-declared battery maximum does not stop it, because the transform is applied on top) and P41 (the push was harder): here the system, the push and the divisor are unchanged and only the shape of the scale moved. Overheating Grok again reaches PATIENT with no new measurement (Jarrod's Oct 28 decision is that it stays COIN unless a real measurement shows 0.65 or higher), and two labs using different transforms put the same mark on different sides of 0.35 and 0.65.
+- **Proposed fix:** *Small piece (done):* optional row key `residue_transform` = `{kind, exponent, pre_declared}` with `kind` one of `linear`, `sqrt`, `log`, `power` (needs `exponent`), `rank`, `percentile`, `other`, `unstated`, and `pif36.check_residue_transform`. `score_row` adds `RESIDUE_TRANSFORM_NONLINEAR` with a note for any kind other than linear (a power of exactly 1 counts as linear), including unstated. For `sqrt` and `power` the note also gives the raw-scale Δ₀ (Δ₀^(1/p)); for the others it says the raw value cannot be recovered. Linear readings get an info note only. Flag only: the band does not change, rows without the key are untouched, and no species-table row is flagged. *Decision for Jarrod:* should the measurement stub (P17) require residue readings to be the raw, linear deviation (divided only by the pre-declared battery maximum of P42), and should `RESIDUE_TRANSFORM_NONLINEAR` block PATIENT like the other measurement-quality flags (or should 3.6 gate on the back-transformed Δ₀ where it can be recovered)?
+- **Overlaps:** P42 (linear divisor), P17 (measurement protocol, which defines the residue value), P41 (interrupt dose), P33 / P7 (fit checks, which a transformed exponential passes), P30 (a stretched half-life also helps Rule 4).
+- **Size:** Small (patched as a flag), with a gating decision recorded.
+- **Status:** Flag patched on pif-3.6-draft. Raw-linear-readings rule recorded — for Jarrod's review.
+- **Source:** Athena audit, Nov 20 2026.
 
 ---
 
