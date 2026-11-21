@@ -7,8 +7,12 @@ PIF_3.6_PATCHES.md that is marked "patched on pif-3.6-draft" lives here.
 Design rule: all 3.5 species-table rows score identically (same band, same
 percentages, same 3.5 flags) under 3.6 defaults. New optional inputs only
 ever make a result MORE cautious (never raise a band). New 3.6-only checks
-add flags; the fit-window checks (P7/P8) can block PATIENT, but no 3.5 row
-trips them (tests prove this).
+add flags. The checks that can lower a band are: the residue-fit quality
+flags (P7, P8, P24, P25, P27, P30, P31, P32, P33), the time-unit/clock checks
+(P29) and an announced/self-reported probe (P1), which block PATIENT (and the
+quality/unit checks also keep a no-body row out of COIN); and free copy/reset
+(P3), which lowers TS. No 3.5 row trips any of them (tests prove this). Every
+other 3.6 check (P34-P44 included) is a flag only.
 
 Standard library only.
 """
