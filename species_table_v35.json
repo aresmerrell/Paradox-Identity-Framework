@@ -45,6 +45,15 @@
    "residue_series": null,
    "intended_band": "EMPTY",
    "band_assertion": "hard",
+   "row_role": "consistency_check",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "none",
+    "overall": "none"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional)",
     "behaviour": "estimated (Athena, provisional)",
@@ -94,6 +103,15 @@
    "residue_series": null,
    "intended_band": "COIN/PATIENT",
    "band_assertion": "report",
+   "row_role": "consistency_check",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "none",
+    "overall": "none"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional)",
     "behaviour": "estimated (Athena, provisional)",
@@ -171,6 +189,15 @@
    ],
    "intended_band": "EMPTY",
    "band_assertion": "hard",
+   "row_role": "consistency_check",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (C,S totals; spread evenly per layer)",
     "behaviour": "estimated (Athena, provisional)",
@@ -244,6 +271,15 @@
    ],
    "intended_band": "EMPTY",
    "band_assertion": "hard",
+   "row_role": "consistency_check",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (C,S totals; spread evenly per layer)",
     "behaviour": "estimated (Athena, provisional)",
@@ -317,6 +353,15 @@
    ],
    "intended_band": "COIN",
    "band_assertion": "hard",
+   "row_role": "consistency_check",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (C,S totals; spread evenly per layer)",
     "behaviour": "estimated (Athena, provisional)",
@@ -390,6 +435,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "hard",
+   "row_role": "consistency_check",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (C,S totals; spread evenly per layer)",
     "behaviour": "estimated (Athena, provisional)",
@@ -463,6 +517,15 @@
    ],
    "intended_band": "EMPTY",
    "band_assertion": "hard",
+   "row_role": "consistency_check",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (C,S totals; spread evenly)",
     "behaviour": "repo",
@@ -535,6 +598,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "report",
+   "row_role": "consistency_check",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (C,S totals; spread evenly)",
     "behaviour": "repo (Delta_0 0.85, lambda 0.4; units now hours)",
@@ -605,6 +677,15 @@
    ],
    "intended_band": "EMPTY",
    "band_assertion": "hard",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (C=0); S=12 estimated (any S gives 0%)",
     "behaviour": "estimated (Athena, provisional)",
@@ -675,6 +756,15 @@
    ],
    "intended_band": "COIN/PATIENT",
    "band_assertion": "report",
+   "row_role": "consistency_check",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (C=3.5, S=12; spread evenly)",
     "behaviour": "estimated (Athena, provisional)",
@@ -747,6 +837,15 @@
    ],
    "intended_band": "COIN/PATIENT",
    "band_assertion": "report",
+   "row_role": "consistency_check",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (brick vector)",
     "behaviour": "estimated (Athena, provisional)",
@@ -822,6 +921,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (C=5, S back-solved from 40%; spread evenly)",
     "behaviour": "estimated (Athena, provisional)",
@@ -867,6 +975,15 @@
    "residue_series": null,
    "intended_band": "legacy/unmeasured",
    "band_assertion": "legacy",
+   "row_role": "legacy_comparison",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "none",
+    "overall": "none"
+   },
    "provenance": {
     "bricks": "repo (C=5*M=4.2, S back-solved 14.0; spread evenly)",
     "behaviour": "estimated (Athena, provisional): cost/continuity only",
@@ -939,6 +1056,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (C=5, S back-solved from 98%; spread evenly)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1009,6 +1135,15 @@
    ],
    "intended_band": "EMPTY",
    "band_assertion": "hard",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "repo (v1.2 vector renumbered to v2.0 order)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1082,6 +1217,15 @@
    ],
    "intended_band": "EMPTY",
    "band_assertion": "hard",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 60.0% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1154,6 +1298,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 98.25% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1201,6 +1354,15 @@
    "residue_series": null,
    "intended_band": "legacy/unmeasured",
    "band_assertion": "legacy",
+   "row_role": "legacy_comparison",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "none",
+    "overall": "none"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 81.5% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional): cost/continuity only",
@@ -1275,6 +1437,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 65.75% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1347,6 +1518,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 81.5% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1419,6 +1599,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 94.5% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1491,6 +1680,15 @@
    ],
    "intended_band": "EMPTY",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 21.0% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1563,6 +1761,15 @@
    ],
    "intended_band": "EMPTY",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 33.5% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1635,6 +1842,15 @@
    ],
    "intended_band": "EMPTY/COIN",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 35.5% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1707,6 +1923,15 @@
    ],
    "intended_band": "EMPTY/COIN",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 37.0% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1779,6 +2004,15 @@
    ],
    "intended_band": "COIN",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "estimated (Athena, provisional): uniform split of flat 59.0% (no brick vector exists)",
     "behaviour": "estimated (Athena, provisional)",
@@ -1851,6 +2085,15 @@
    ],
    "intended_band": "COIN",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "grok-provisional",
     "behaviour": "grok-provisional",
@@ -1928,6 +2171,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "grok-provisional",
     "behaviour": "grok-provisional",
@@ -2003,6 +2255,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "grok-provisional",
     "behaviour": "grok-provisional",
@@ -2078,6 +2339,15 @@
    ],
    "intended_band": "COIN",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "grok-provisional",
     "behaviour": "grok-provisional",
@@ -2163,6 +2433,15 @@
    ],
    "intended_band": "PATIENT",
    "band_assertion": "report",
+   "row_role": "real_world_anchor",
+   "evidence_class": {
+    "bricks": "assumed",
+    "cost_ratio": "assumed",
+    "protects_continuity": "assumed",
+    "costable_self": "assumed",
+    "residue": "assumed",
+    "overall": "assumed"
+   },
    "provenance": {
     "bricks": "grok-provisional (dog row)",
     "behaviour": "grok-provisional",
@@ -2174,5 +2453,17 @@
    ],
    "legacy": {}
   }
- ]
+ ],
+ "row_role_legend": {
+  "consistency_check": "constructed scenario (from scorer built-ins, v2.1/v3.0 worked examples or hypotheticals) that checks the logic produces the intended label; not a claim about any real system",
+  "real_world_anchor": "approximate description of a real kind of system (human, animal, plant, colony, deployed AI); still provisional until measured data replaces the estimates",
+  "legacy_comparison": "kept from older versions for comparison only; residue unmeasured, excluded from band misses"
+ },
+ "evidence_class_legend": {
+  "measured": "taken from a recorded measurement of this system under a written method (e.g. a residue series from a blind probe; see PIF_3.6_MEASUREMENT_STUB.md)",
+  "observed": "based on documented observation of this kind of system's behaviour, but not measured under the PIF method",
+  "assumed": "chosen by the row's author (estimate, hypothetical, or generated curve); not observed or measured",
+  "none": "no value exists (e.g. residue unmeasured)",
+  "overall": "the weakest class among the row's inputs (none < assumed < observed < measured)"
+ }
 }
