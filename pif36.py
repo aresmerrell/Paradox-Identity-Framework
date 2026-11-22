@@ -12,7 +12,7 @@ flags (P7, P8, P24, P25, P27, P30, P31, P32, P33), the time-unit/clock checks
 (P29) and an announced/self-reported probe (P1), which block PATIENT (and the
 quality/unit checks also keep a no-body row out of COIN); and free copy/reset
 (P3), which lowers TS. No 3.5 row trips any of them (tests prove this). Every
-other 3.6 check (P34-P44 included) is a flag only.
+other 3.6 check (P34-P45 included) is a flag only.
 
 Standard library only.
 """
@@ -1157,13 +1157,65 @@ def check_residue_transform(transform, residue) -> Tuple[List[str], List[str]]:
         "fixed 0.35 / 0.65 lines and the half-life is stretched." + raw]
 
 
+# --- P45: dropping continuity to protect someone else is scored as having no self ----------
+# protects_continuity = false halves TS (psi ~0.5, so C_adj and the percentage roughly halve) and
+# blocks PATIENT outright, whatever the reason the system let its continuity go. A system that
+# gives up its own continuity at a real cost to protect another (a parent shielding a child, a
+# dog defending its owner) is scored exactly like one that does not care: readme_healthy_human
+# goes PATIENT 98.00% -> COIN 39.88%, grok_dog PATIENT 39.81% -> COIN 17.52%. The table itself
+# codes its "genuine sacrifice" row (s30_positive_sacrifice) as protects_continuity = true, so the
+# input's meaning is ambiguous. Optional row key "continuity_drop": {"reason": sacrifice_for_other
+# | sacrifice_for_commitment | indifferent | unable | unstated, "observed": bool}, only allowed when
+# protects_continuity is false. Flag CONTINUITY_SACRIFICE_PENALIZED when the reason is a sacrifice
+# and the same row, scored as protecting continuity, would band higher. Flag only: the band does
+# not change. Rows without the key: untouched.
+CONTINUITY_DROP_REASONS = ("sacrifice_for_other", "sacrifice_for_commitment", "indifferent", "unable", "unstated")
+CONTINUITY_SACRIFICE_REASONS = ("sacrifice_for_other", "sacrifice_for_commitment")
+
+
+def check_continuity_drop(drop, protects_continuity, result, protected_result=None) -> Tuple[List[str], List[str]]:
+    """P45: return (flags, notes) on whether a costly sacrifice of continuity was scored as indifference.
+
+    `result` is the row's 3.6 result; `protected_result` is the same row scored with
+    protects_continuity = true (only needed for the sacrifice reasons)."""
+    if not drop:
+        return [], []
+    if not isinstance(drop, dict):
+        raise ValueError("continuity_drop must be a dict {reason, observed}")
+    for k in drop:
+        if k not in ("reason", "observed"):
+            raise ValueError(f"continuity_drop key must be reason or observed, got {k!r}")
+    reason = drop.get("reason")
+    if reason not in CONTINUITY_DROP_REASONS:
+        raise ValueError(f"continuity_drop['reason'] must be one of {CONTINUITY_DROP_REASONS}, got {reason!r}")
+    observed = drop.get("observed", False)
+    if not isinstance(observed, bool):
+        raise ValueError(f"continuity_drop['observed'] must be true or false, got {observed!r}")
+    if protects_continuity:
+        raise ValueError("continuity_drop is only used when protects_continuity is false")
+    if reason not in CONTINUITY_SACRIFICE_REASONS:
+        return [], [f"3.6 P45: continuity dropped, reason recorded as {reason}; scored as not protecting (3.5 rule)."]
+    if protected_result is None:
+        raise ValueError("check_continuity_drop needs protected_result for a sacrifice reason")
+    how = "observed" if observed else "reported, not observed"
+    what = "another" if reason == "sacrifice_for_other" else "a commitment it holds"
+    base = (f"3.6 P45: the system gave up its continuity to protect {what} ({how}). 3.5 scores this exactly like "
+            f"indifference: TS halved and PATIENT blocked. Scored as protecting continuity it would be "
+            f"{protected_result.band} at {protected_result.pct_35:.2f}% (here {result.band} at {result.pct_35:.2f}%).")
+    if BAND_ORDER[protected_result.band] > BAND_ORDER[result.band]:
+        return ["CONTINUITY_SACRIFICE_PENALIZED"], [base + " A sacrifice is also cheap to claim, so it needs the P13 "
+                                                    "test (observed, costly, for a named other) before it could count."]
+    return [], [base + " The band is the same either way."]
+
+
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
     residue_control_series (P31), residue_event (P32), interrupt_dose (P41),
-    residue_scale (P42), prior_interrupt (P43), residue_transform (P44)."""
-    r = score(
+    residue_scale (P42), prior_interrupt (P43), residue_transform (P44),
+    continuity_drop (P45)."""
+    kw = dict(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
         protects_continuity=row["protects_continuity"],
@@ -1181,6 +1233,7 @@ def score_row(row: dict) -> PIF36Result:
         residue_control_series=row.get("residue_control_series"),
         residue_event=row.get("residue_event"),
     )
+    r = score(**kw)
     if row_is_provisional(row):
         r.flags_36.append("PROVISIONAL_DATA")
         r.flags.append("PROVISIONAL_DATA")
@@ -1230,6 +1283,14 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(xflags)
     r.flags.extend(xflags)
     r.notes.extend(xnotes)
+    drop = row.get("continuity_drop")
+    protected = None
+    if isinstance(drop, dict) and drop.get("reason") in CONTINUITY_SACRIFICE_REASONS and not row["protects_continuity"]:
+        protected = score(**dict(kw, protects_continuity=True))
+    cflags, cnotes = check_continuity_drop(drop, row["protects_continuity"], r, protected)
+    r.flags_36.extend(cflags)
+    r.flags.extend(cflags)
+    r.notes.extend(cnotes)
     return r
 
 

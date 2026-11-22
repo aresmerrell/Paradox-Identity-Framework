@@ -1253,3 +1253,64 @@ class TestP44ResidueTransform(unittest.TestCase):
     def test_stable_35_ignores_key(self):
         row = self._row("grok_dog", {"kind": "sqrt"})
         self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog")).band)
+
+
+class TestP45ContinuitySacrifice(unittest.TestCase):
+    """P45: dropping continuity to protect someone else is scored as indifference (flag only)."""
+
+    def _row(self, rid, drop=None, flip=False):
+        row = dict(next(r for r in ROWS if r["id"] == rid))
+        if flip:
+            row["protects_continuity"] = False
+        if drop is not None:
+            row["continuity_drop"] = drop
+        return row
+
+    def test_sacrifice_moves_patient_to_coin_in_35_and_is_flagged(self):
+        for rid, pct_here, pct_prot in (
+            ("readme_healthy_human", 39.88, 98.00),
+            ("grok_dog", 17.52, 39.81),
+            ("v21_embodied_stakes", 24.13, 58.50),
+        ):
+            self.assertEqual(pif35.score_row(self._row(rid)).band, "PATIENT")
+            flipped = pif35.score_row(self._row(rid, flip=True))
+            self.assertEqual(flipped.band, "COIN")
+            r = pif36.score_row(self._row(rid, {"reason": "sacrifice_for_other", "observed": True}, flip=True))
+            self.assertIn("CONTINUITY_SACRIFICE_PENALIZED", r.flags_36)
+            self.assertEqual(r.band, "COIN")  # flag only
+            note = next(n for n in r.notes if "P45" in n)
+            self.assertIn(f"{pct_prot:.2f}%", note)
+            self.assertIn(f"{pct_here:.2f}%", note)
+
+    def test_commitment_reason_also_flagged(self):
+        r = pif36.score_row(self._row("grok_dog", {"reason": "sacrifice_for_commitment"}, flip=True))
+        self.assertIn("CONTINUITY_SACRIFICE_PENALIZED", r.flags_36)
+        self.assertTrue(any("a commitment it holds" in n for n in r.notes))
+
+    def test_same_band_sacrifice_not_flagged(self):
+        r = pif36.score_row(self._row("grok_octopus", {"reason": "sacrifice_for_other", "observed": True}, flip=True))
+        self.assertNotIn("CONTINUITY_SACRIFICE_PENALIZED", r.flags_36)
+        self.assertTrue(any("The band is the same either way" in n for n in r.notes))
+
+    def test_indifferent_and_unable_not_flagged(self):
+        for reason in ("indifferent", "unable", "unstated"):
+            r = pif36.score_row(self._row("grok_dog", {"reason": reason}, flip=True))
+            self.assertNotIn("CONTINUITY_SACRIFICE_PENALIZED", r.flags_36, reason)
+            self.assertTrue(any("P45" in n for n in r.notes), reason)
+
+    def test_bad_drop_rejected(self):
+        for t in ("sacrifice_for_other", {"reason": "heroism"}, {"reason": "indifferent", "observed": "yes"},
+                  {"reason": "indifferent", "extra": 1}, {"observed": True}):
+            with self.assertRaises(ValueError):
+                pif36.check_continuity_drop(t, False, None)
+        with self.assertRaises(ValueError):
+            pif36.check_continuity_drop({"reason": "indifferent"}, True, None)
+        self.assertEqual(pif36.check_continuity_drop({}, False, None), ([], []))
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("CONTINUITY_SACRIFICE_PENALIZED", pif36.score_row(row).flags_36, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        row = self._row("grok_dog", {"reason": "sacrifice_for_other"}, flip=True)
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog", flip=True)).band)
