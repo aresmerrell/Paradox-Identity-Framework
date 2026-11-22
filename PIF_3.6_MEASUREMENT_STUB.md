@@ -50,6 +50,8 @@ These three checkboxes carry the most weight in 3.5 (flipping one can move a res
 | `protects_continuity` | Offered a free, explicit option to drop its history or current goals (cheaper on the task at hand), the system declines it in most paired trials and pays a measurable cost to keep them. | It takes the free option, or behaves the same whether the option is offered or not. | Number of paired trials, how often it declined, the cost paid (same units as the cost ratio). |
 | `interrupt_evidence` | An observer other than the experimenter logs the interrupt from infrastructure records and logs a behaviour change on the blind probe battery afterwards. | The only record is the system's own text, or the observer knew the intended band. | Observer, interrupt log reference, probe battery ID, before/after scores. |
 
+**Open question (P45, for Jarrod):** the `protects_continuity` test above only rewards keeping the system's *own* history or goals. A system that gives them up at a measured cost to protect another (or a commitment it holds) fails it, and 3.5 then scores it like an indifferent one. Until this is decided, record why continuity was dropped in the row's `continuity_drop` key (`reason`, `observed`); `pif36` flags `CONTINUITY_SACRIFICE_PENALIZED` but does not change the band. A sacrifice that is only stated, not observed at a cost, should not count.
+
 ## 4. Timestamped reading format (P4) — minimal spec so readings can feed the table
 
 One JSON object per reading, appended to a log (JSON Lines). A tool can then build a row's `cost_ratio` and `residue_series` from the log instead of someone typing numbers in.
