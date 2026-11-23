@@ -1314,3 +1314,94 @@ class TestP45ContinuitySacrifice(unittest.TestCase):
     def test_stable_35_ignores_key(self):
         row = self._row("grok_dog", {"reason": "sacrifice_for_other"}, flip=True)
         self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog", flip=True)).band)
+
+
+class TestP46GroupAggregate(unittest.TestCase):
+    """P46: a group-summary row can band differently from most of its members (flag only)."""
+
+    HOURS = (0, 1, 2, 4, 8, 24)
+
+    def _ser(self, d0, lam=0.6):
+        return pif35.residue_series_from_curve(d0, lam, self.HOURS)
+
+    def _mean(self, d0s, lam=0.6):
+        return [[float(t), round(sum(d * math.exp(-lam * t) for d in d0s) / len(d0s), 4)] for t in self.HOURS]
+
+    def _row(self, d0s=None, agg=None, with_subjects=True):
+        row = dict(next(r for r in ROWS if r["id"] == "grok_dog"))
+        if d0s is not None:
+            row["residue_series"] = self._mean(d0s)
+        if agg is not None:
+            agg = dict(agg)
+            if with_subjects and d0s is not None:
+                agg["subject_series"] = [self._ser(d) for d in d0s]
+            row["aggregation"] = agg
+        return row
+
+    def test_mean_lifts_group_to_patient_in_35_and_is_flagged(self):
+        d0s = (0.60, 0.60, 0.75)
+        self.assertEqual([pif35.score_row(dict(self._row(), residue_series=self._ser(d))).band for d in d0s],
+                         ["COIN", "COIN", "PATIENT"])
+        self.assertEqual(pif35.score_row(self._row(d0s)).band, "PATIENT")
+        r = pif36.score_row(self._row(d0s, {"unit": "group", "n_subjects": 3, "method": "mean"}))
+        self.assertEqual(r.band, "PATIENT")  # flag only
+        self.assertIn("AGGREGATE_ROW", r.flags_36)
+        self.assertIn("AGGREGATE_BAND_MISMATCH", r.flags_36)
+        note = next(n for n in r.notes if "P46" in n)
+        self.assertIn("COIN 2, PATIENT 1", note)
+
+    def test_mean_drops_group_to_coin_in_35_and_is_flagged(self):
+        d0s = (0.90, 0.90, 0.10)
+        self.assertEqual(pif35.score_row(self._row(d0s)).band, "COIN")
+        r = pif36.score_row(self._row(d0s, {"unit": "group", "n_subjects": 3, "method": "mean"}))
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("AGGREGATE_BAND_MISMATCH", r.flags_36)
+
+    def test_mean_is_a_clean_exponential(self):
+        # same-lambda curves average to one exponential: no 3.6 fit-quality flag catches it
+        r = pif36.score_row(self._row((0.60, 0.60, 0.75)))
+        self.assertEqual(r.residue["status"], "VALID")
+        self.assertAlmostEqual(r.residue["delta_0"], 0.65, places=3)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_matching_group_only_info_flag(self):
+        r = pif36.score_row(self._row((0.80, 0.80, 0.70), {"unit": "group", "method": "median"}))
+        self.assertIn("AGGREGATE_ROW", r.flags_36)
+        self.assertNotIn("AGGREGATE_BAND_MISMATCH", r.flags_36)
+        self.assertTrue(any("PATIENT 3" in n for n in r.notes))
+
+    def test_group_without_subjects(self):
+        r = pif36.score_row(self._row(agg={"unit": "group"}))
+        self.assertEqual(r.flags_36.count("AGGREGATE_ROW"), 1)
+        self.assertNotIn("AGGREGATE_BAND_MISMATCH", r.flags_36)
+        self.assertTrue(any("spread of member bands is unknown" in n and "not recorded" in n for n in r.notes))
+
+    def test_individual_info_only(self):
+        r = pif36.score_row(self._row(agg={"unit": "individual", "n_subjects": 1}))
+        self.assertNotIn("AGGREGATE_ROW", r.flags_36)
+        self.assertTrue(any("one individual" in n for n in r.notes))
+
+    def test_bad_aggregation_rejected(self):
+        s = [[0, 0.5], [1, 0.3], [2, 0.2]]
+        for a in ("group", {"unit": "herd"}, {"unit": "group", "n_subjects": 1},
+                  {"unit": "group", "n_subjects": 2.5}, {"unit": "group", "n_subjects": True},
+                  {"unit": "group", "method": "vibes"}, {"unit": "group", "extra": 1},
+                  {"unit": "individual", "n_subjects": 2}, {"unit": "individual", "method": "mean"},
+                  {"unit": "group", "subject_series": [s]},
+                  {"unit": "group", "n_subjects": 3, "subject_series": [s, s]}):
+            with self.assertRaises(ValueError):
+                pif36.check_aggregation(a, None)
+        with self.assertRaises(ValueError):  # subject series without subject results
+            pif36.check_aggregation({"unit": "group", "subject_series": [s, s]}, None)
+        self.assertEqual(pif36.check_aggregation({}, None), ([], []))
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            self.assertNotIn("AGGREGATE_ROW", f, row["id"])
+            self.assertNotIn("AGGREGATE_BAND_MISMATCH", f, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        d0s = (0.60, 0.60, 0.75)
+        row = self._row(d0s, {"unit": "group", "n_subjects": 3, "method": "mean"})
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row(d0s)).band)

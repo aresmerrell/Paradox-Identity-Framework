@@ -12,7 +12,7 @@ flags (P7, P8, P24, P25, P27, P30, P31, P32, P33), the time-unit/clock checks
 (P29) and an announced/self-reported probe (P1), which block PATIENT (and the
 quality/unit checks also keep a no-body row out of COIN); and free copy/reset
 (P3), which lowers TS. No 3.5 row trips any of them (tests prove this). Every
-other 3.6 check (P34-P45 included) is a flag only.
+other 3.6 check (P34-P46 included) is a flag only.
 
 Standard library only.
 """
@@ -1208,13 +1208,85 @@ def check_continuity_drop(drop, protects_continuity, result, protected_result=No
     return [], [base + " The band is the same either way."]
 
 
+# --- P46: a row can be a group summary, and the summary can band differently from its members ----------
+# Every input is written for one system, but nothing says whether a row is one individual or a
+# group summary (a species, a cohort, an "average human"), how many subjects it stands for, or how
+# they were combined. The bands are thresholds on non-linear quantities, so the band of an average
+# is not the band most members get. Same-lambda curves average to one clean exponential, so the fit
+# cannot see it. Demo (grok_dog inputs, lambda 0.6/h): subjects with Delta_0 0.60, 0.60, 0.75 band
+# COIN, COIN, PATIENT, but their mean curve (Delta_0 0.65) bands PATIENT; subjects 0.90, 0.90, 0.10
+# band PATIENT, PATIENT, COIN, but their mean (0.633) bands COIN. The yes/no inputs cannot be averaged
+# at all. Optional row key "aggregation": {"unit": individual | group, "n_subjects": int,
+# "method": mean | median | pooled_series | typical_member | majority | other | unstated,
+# "subject_series": [per-subject residue series, ...]}. A group row gets AGGREGATE_ROW (info); when
+# subject_series is given each subject is scored with the row's other inputs and
+# AGGREGATE_BAND_MISMATCH is added if the row's band is not the most common subject band.
+# Flag only: the band does not change. Rows without the key: untouched.
+AGGREGATION_UNITS = ("individual", "group")
+AGGREGATION_METHODS = ("mean", "median", "pooled_series", "typical_member", "majority", "other", "unstated")
+AGGREGATION_KEYS = ("unit", "n_subjects", "method", "subject_series")
+
+
+def check_aggregation(agg, result, subject_results=None) -> Tuple[List[str], List[str]]:
+    """P46: return (flags, notes) on whether the row is a group summary and whether its band
+    matches the band most of its subjects get. `subject_results` are the per-subject 3.6 results."""
+    if not agg:
+        return [], []
+    if not isinstance(agg, dict):
+        raise ValueError("aggregation must be a dict {unit, n_subjects, method, subject_series}")
+    for k in agg:
+        if k not in AGGREGATION_KEYS:
+            raise ValueError(f"aggregation key must be one of {AGGREGATION_KEYS}, got {k!r}")
+    unit = agg.get("unit")
+    if unit not in AGGREGATION_UNITS:
+        raise ValueError(f"aggregation['unit'] must be one of {AGGREGATION_UNITS}, got {unit!r}")
+    n = agg.get("n_subjects")
+    if n is not None and (isinstance(n, bool) or not isinstance(n, int) or n < 1):
+        raise ValueError(f"aggregation['n_subjects'] must be a whole number >= 1, got {n!r}")
+    method = agg.get("method", "unstated")
+    if method not in AGGREGATION_METHODS:
+        raise ValueError(f"aggregation['method'] must be one of {AGGREGATION_METHODS}, got {method!r}")
+    subs = agg.get("subject_series")
+    if unit == "individual":
+        if n not in (None, 1) or subs is not None or "method" in agg:
+            raise ValueError("an individual row takes no method or subject_series, and n_subjects must be 1")
+        return [], ["3.6 P46: row is one individual, scored as measured."]
+    if n is not None and n < 2:
+        raise ValueError("a group row needs n_subjects >= 2")
+    if subs is not None:
+        if not isinstance(subs, (list, tuple)) or len(subs) < 2:
+            raise ValueError("aggregation['subject_series'] must be a list of at least 2 residue series")
+        if n is not None and len(subs) != n:
+            raise ValueError(f"aggregation has {len(subs)} subject series but n_subjects = {n}")
+        if subject_results is None or len(subject_results) != len(subs):
+            raise ValueError("check_aggregation needs one subject result per subject series")
+    size = f"{n} subjects" if n is not None else "number of subjects not recorded"
+    base = (f"3.6 P46: this row summarises a group ({size}, combined by {method}). The bands are thresholds on "
+            f"non-linear quantities, so the band of a summary need not be the band most members get, and the "
+            f"yes/no inputs (protects_continuity, costable_self, interrupt_evidence) cannot be averaged.")
+    flags = ["AGGREGATE_ROW"]
+    if subject_results is None:
+        return flags, [base + " No per-subject series given, so the spread of member bands is unknown."]
+    counts = {b: 0 for b in BAND_ORDER}
+    for sr in subject_results:
+        counts[sr.band] += 1
+    top = max(counts.values())
+    modal = [b for b in BAND_ORDER if counts[b] == top]
+    spread = ", ".join(f"{b} {counts[b]}" for b in BAND_ORDER if counts[b])
+    note = base + f" Subjects scored one by one: {spread}; the row bands {result.band}."
+    if result.band not in modal:
+        flags.append("AGGREGATE_BAND_MISMATCH")
+        note += f" The row's band is not the most common subject band ({' / '.join(modal)})."
+    return flags, [note]
+
+
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
     residue_control_series (P31), residue_event (P32), interrupt_dose (P41),
     residue_scale (P42), prior_interrupt (P43), residue_transform (P44),
-    continuity_drop (P45)."""
+    continuity_drop (P45), aggregation (P46)."""
     kw = dict(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -1291,6 +1363,14 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(cflags)
     r.flags.extend(cflags)
     r.notes.extend(cnotes)
+    agg = row.get("aggregation")
+    subject_results = None
+    if isinstance(agg, dict) and agg.get("unit") == "group" and isinstance(agg.get("subject_series"), (list, tuple)):
+        subject_results = [score(**dict(kw, residue_series=ser)) for ser in agg["subject_series"]]
+    gflags, gnotes = check_aggregation(agg, r, subject_results)
+    r.flags_36.extend(gflags)
+    r.flags.extend(gflags)
+    r.notes.extend(gnotes)
     return r
 
 
