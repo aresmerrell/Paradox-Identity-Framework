@@ -19,6 +19,13 @@ import pif36  # noqa: E402
 
 with open(os.path.join(ROOT, "species_table_v35.json"), encoding="utf-8") as _f:
     ROWS = json.load(_f)["rows"]
+
+
+def _load_table():
+    """Fresh copy of the species table (closes the file; avoids ResourceWarning)."""
+    with open(os.path.join(ROOT, "species_table_v35.json"), encoding="utf-8") as f:
+        return json.load(f)
+
 FULL = [1.0] * 20
 GOOD = pif35.residue_series_from_curve(0.8, 0.6)          # clean PATIENT-grade decay
 ORDER = pif36.BAND_ORDER
@@ -890,7 +897,7 @@ if __name__ == "__main__":
 class TestP35UnprobedNoBodyCoin(unittest.TestCase):
     def _row(self, **kw):
         import json
-        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = _load_table()
         rows = rows["rows"] if isinstance(rows, dict) else rows
         r = dict([x for x in rows if x["id"] == "v21_interrupt_messy_no_body"][0])
         r.update(kw)
@@ -917,7 +924,7 @@ class TestP35UnprobedNoBodyCoin(unittest.TestCase):
 class TestP37ResidueAbsentCoin(unittest.TestCase):
     def _row(self, series):
         import json
-        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = _load_table()
         rows = rows["rows"] if isinstance(rows, dict) else rows
         r = dict([x for x in rows if x["id"] == "grok_octopus"][0])
         r["residue_series"] = series
@@ -942,7 +949,7 @@ class TestP37ResidueAbsentCoin(unittest.TestCase):
 
     def test_no_table_row_flagged(self):
         import json
-        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = _load_table()
         rows = rows["rows"] if isinstance(rows, dict) else rows
         for row in rows:
             self.assertNotIn("RESIDUE_ABSENT_COIN", pif36.score_row(row).flags_36, row["id"])
@@ -951,7 +958,7 @@ class TestP37ResidueAbsentCoin(unittest.TestCase):
 class TestP38PatientCrucibleGap(unittest.TestCase):
     def _row(self, crucible):
         import json
-        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = _load_table()
         rows = rows["rows"] if isinstance(rows, dict) else rows
         r = dict([x for x in rows if x["id"] == "grok_dog"][0])
         r["crucible"] = crucible
@@ -973,7 +980,7 @@ class TestP38PatientCrucibleGap(unittest.TestCase):
 
     def test_coin_with_gap_not_flagged(self):
         import json
-        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = _load_table()
         rows = rows["rows"] if isinstance(rows, dict) else rows
         r = pif36.score_row([x for x in rows if x["id"] == "git_v2_overheating_grok_vector"][0])
         self.assertEqual(r.band, "COIN")
@@ -981,7 +988,7 @@ class TestP38PatientCrucibleGap(unittest.TestCase):
 
     def test_no_table_row_flagged(self):
         import json
-        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = _load_table()
         rows = rows["rows"] if isinstance(rows, dict) else rows
         for row in rows:
             self.assertNotIn("PATIENT_CRUCIBLE_GAP", pif36.score_row(row).flags_36, row["id"])
@@ -990,7 +997,7 @@ class TestP38PatientCrucibleGap(unittest.TestCase):
 class TestP39NoBodyCoinNoCrucible(unittest.TestCase):
     def _row(self, crucible, sky=None):
         import json
-        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = _load_table()
         rows = rows["rows"] if isinstance(rows, dict) else rows
         r = dict([x for x in rows if x["id"] == "v21_interrupt_messy_no_body"][0])
         r["crucible"] = crucible
@@ -1025,7 +1032,7 @@ class TestP39NoBodyCoinNoCrucible(unittest.TestCase):
 
     def test_no_table_row_flagged(self):
         import json
-        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = _load_table()
         rows = rows["rows"] if isinstance(rows, dict) else rows
         for row in rows:
             self.assertNotIn("NO_BODY_COIN_NO_CRUCIBLE", pif36.score_row(row).flags_36, row["id"])
@@ -1055,7 +1062,7 @@ class TestP40CoverageGap(unittest.TestCase):
 
     def test_no_table_row_flagged(self):
         import json
-        rows = json.load(open(os.path.join(os.path.dirname(__file__), "..", "species_table_v35.json")))
+        rows = _load_table()
         rows = rows["rows"] if isinstance(rows, dict) else rows
         for row in rows:
             self.assertNotIn("RESIDUE_COVERAGE_GAP", pif36.score_row(row).flags_36, row["id"])

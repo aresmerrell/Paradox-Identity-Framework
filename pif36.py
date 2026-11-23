@@ -1393,7 +1393,8 @@ def provenance_summary(rows) -> dict:
 if __name__ == "__main__":
     import json, os, sys
     path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), "species_table_v35.json")
-    table = json.load(open(path))
+    with open(path, encoding="utf-8") as f:
+        table = json.load(f)
     for row in table["rows"]:
         r = score_row(row)
         r35 = pif35.score_row(row)
