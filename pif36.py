@@ -12,7 +12,7 @@ flags (P7, P8, P24, P25, P27, P30, P31, P32, P33), the time-unit/clock checks
 (P29) and an announced/self-reported probe (P1), which block PATIENT (and the
 quality/unit checks also keep a no-body row out of COIN); and free copy/reset
 (P3), which lowers TS. No 3.5 row trips any of them (tests prove this). Every
-other 3.6 check (P34-P46 included) is a flag only.
+other 3.6 check (P34-P47 included) is a flag only.
 
 Standard library only.
 """
@@ -1280,13 +1280,55 @@ def check_aggregation(agg, result, subject_results=None) -> Tuple[List[str], Lis
     return flags, [note]
 
 
+SELF_RECOGNITION_MODALITIES = ("visual", "olfactory", "auditory", "tactile", "textual", "other", "unstated")
+SELF_RECOGNITION_KEYS = ("test_modality", "primary_modality")
+MIRROR_BRICK_INDEX = 19  # brick 20 "Mirror/visual self-recognition" (0-based index in the 20-brick list)
+
+
+def check_self_recognition(sr, bricks, result, full_result=None) -> Tuple[List[str], List[str]]:
+    """P47: return (flags, notes) on whether brick 20 was tested in a sense the system mainly uses.
+
+    `bricks` are the row's 20 bricks, `result` its 3.6 result, and `full_result` the same row
+    scored with brick 20 = 1.0 (only needed for a mismatch, to show what the choice of sense is worth)."""
+    if not sr:
+        return [], []
+    if not isinstance(sr, dict):
+        raise ValueError("self_recognition must be a dict {test_modality, primary_modality}")
+    for k in sr:
+        if k not in SELF_RECOGNITION_KEYS:
+            raise ValueError(f"self_recognition key must be one of {SELF_RECOGNITION_KEYS}, got {k!r}")
+    test = sr.get("test_modality", "unstated")
+    primary = sr.get("primary_modality", "unstated")
+    for name, v in (("test_modality", test), ("primary_modality", primary)):
+        if v not in SELF_RECOGNITION_MODALITIES:
+            raise ValueError(f"self_recognition[{name!r}] must be one of {SELF_RECOGNITION_MODALITIES}, got {v!r}")
+    b20 = float(bricks[MIRROR_BRICK_INDEX])
+    if test == "unstated":
+        return ["SELF_RECOGNITION_MODALITY_UNSTATED"], [
+            f"3.6 P47: brick 20 (self-recognition) = {b20:g}, but the sense used for the test is not recorded, so "
+            f"it cannot be compared with other rows (a visual mirror test and an own-scent or own-output test "
+            f"are different tests)."]
+    if primary == "unstated":
+        return [], [f"3.6 P47: brick 20 tested by {test} self-recognition; the system's main sense is not recorded, "
+                    f"so a sense mismatch cannot be checked."]
+    if test == primary:
+        return [], [f"3.6 P47: brick 20 tested in the system's main sense ({test})."]
+    if full_result is None:
+        raise ValueError("check_self_recognition needs full_result for a sense mismatch")
+    return ["SELF_RECOGNITION_MODALITY_MISMATCH"], [
+        f"3.6 P47: brick 20 = {b20:g} comes from a {test} self-recognition test, but the system mainly uses "
+        f"{primary}. A low score may measure the sense, not the self (dogs fail the visual mirror test but "
+        f"react to their own changed scent). With brick 20 = 1 the row would be {full_result.pct_35:.2f}% "
+        f"(here {result.pct_35:.2f}%). Brick 20 is a Sky-Scraper brick, so the band ({result.band}) does not move."]
+
+
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
     residue_control_series (P31), residue_event (P32), interrupt_dose (P41),
     residue_scale (P42), prior_interrupt (P43), residue_transform (P44),
-    continuity_drop (P45), aggregation (P46)."""
+    continuity_drop (P45), aggregation (P46), self_recognition (P47)."""
     kw = dict(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -1371,6 +1413,21 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(gflags)
     r.flags.extend(gflags)
     r.notes.extend(gnotes)
+    sr = row.get("self_recognition")
+    full = None
+    if isinstance(sr, dict) and sr.get("test_modality", "unstated") not in ("unstated", sr.get("primary_modality", "unstated")) \
+            and sr.get("primary_modality", "unstated") != "unstated":
+        bricks_full = list(kw["bricks"])
+        bricks_full[MIRROR_BRICK_INDEX] = 1.0
+        extra = {}
+        if kw.get("bricks_rater_b") is not None:
+            extra["bricks_rater_b"] = list(kw["bricks_rater_b"])
+            extra["bricks_rater_b"][MIRROR_BRICK_INDEX] = 1.0
+        full = score(**dict(kw, bricks=bricks_full, **extra))
+    mflags, mnotes = check_self_recognition(sr, kw["bricks"], r, full)
+    r.flags_36.extend(mflags)
+    r.flags.extend(mflags)
+    r.notes.extend(mnotes)
     return r
 
 

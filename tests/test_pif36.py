@@ -1412,3 +1412,70 @@ class TestP46GroupAggregate(unittest.TestCase):
         d0s = (0.60, 0.60, 0.75)
         row = self._row(d0s, {"unit": "group", "n_subjects": 3, "method": "mean"})
         self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row(d0s)).band)
+
+
+class TestP47SelfRecognitionModality(unittest.TestCase):
+    """P47: brick 20 is a visual mirror test; a system tested outside its main sense is flagged (flag only)."""
+
+    def _row(self, rid="grok_dog", sr=None, b20=None):
+        row = dict(next(r for r in ROWS if r["id"] == rid))
+        if b20 is not None:
+            row["sky_scraper"] = row["sky_scraper"][:-1] + [b20]
+        if sr is not None:
+            row["self_recognition"] = sr
+        return row
+
+    def test_brick20_moves_pct_never_band_in_35(self):
+        low = pif35.score_row(self._row())
+        high = pif35.score_row(self._row(b20=1.0))
+        self.assertEqual(low.band, high.band)
+        self.assertAlmostEqual(low.pct_35, 39.81, places=2)
+        self.assertAlmostEqual(high.pct_35, 42.52, places=2)
+
+    def test_visual_test_on_scent_animal_flagged(self):
+        r = pif36.score_row(self._row(sr={"test_modality": "visual", "primary_modality": "olfactory"}))
+        self.assertEqual(r.band, "PATIENT")  # flag only
+        self.assertAlmostEqual(r.pct_35, 39.81, places=2)
+        self.assertIn("SELF_RECOGNITION_MODALITY_MISMATCH", r.flags_36)
+        note = next(n for n in r.notes if "P47" in n)
+        self.assertIn("42.52%", note)
+        self.assertIn("39.81%", note)
+
+    def test_matching_sense_info_only(self):
+        r = pif36.score_row(self._row(sr={"test_modality": "olfactory", "primary_modality": "olfactory"}))
+        self.assertFalse([f for f in r.flags_36 if f.startswith("SELF_RECOGNITION")])
+        self.assertTrue(any("main sense (olfactory)" in n for n in r.notes))
+
+    def test_unstated_test_flagged(self):
+        r = pif36.score_row(self._row(sr={"primary_modality": "olfactory"}))
+        self.assertIn("SELF_RECOGNITION_MODALITY_UNSTATED", r.flags_36)
+        self.assertNotIn("SELF_RECOGNITION_MODALITY_MISMATCH", r.flags_36)
+
+    def test_unstated_primary_info_only(self):
+        r = pif36.score_row(self._row(sr={"test_modality": "visual"}))
+        self.assertFalse([f for f in r.flags_36 if f.startswith("SELF_RECOGNITION")])
+        self.assertTrue(any("cannot be checked" in n for n in r.notes))
+
+    def test_rater_b_also_lifted_in_upper_bound(self):
+        row = self._row(sr={"test_modality": "visual", "primary_modality": "olfactory"})
+        row["bricks_rater_b"] = list(row["crucible"]) + list(row["sky_scraper"])
+        r = pif36.score_row(row)
+        self.assertTrue(any("42.52%" in n for n in r.notes if "P47" in n))
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            self.assertFalse([x for x in f if x.startswith("SELF_RECOGNITION")], row["id"])
+
+    def test_bad_self_recognition_rejected(self):
+        bricks = [0.5] * 20
+        for sr in ("visual", {"test_modality": "smell"}, {"primary_modality": "x"}, {"test_modality": "visual", "extra": 1}):
+            with self.assertRaises(ValueError):
+                pif36.check_self_recognition(sr, bricks, None)
+        with self.assertRaises(ValueError):  # mismatch without the upper-bound result
+            pif36.check_self_recognition({"test_modality": "visual", "primary_modality": "textual"}, bricks, None)
+        self.assertEqual(pif36.check_self_recognition({}, bricks, None), ([], []))
+
+    def test_stable_35_ignores_key(self):
+        row = self._row(sr={"test_modality": "visual", "primary_modality": "olfactory"})
+        self.assertEqual(pif35.score_row(row).pct_35, pif35.score_row(self._row()).pct_35)
