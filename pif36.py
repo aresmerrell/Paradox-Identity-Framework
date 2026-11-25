@@ -12,7 +12,7 @@ flags (P7, P8, P24, P25, P27, P30, P31, P32, P33), the time-unit/clock checks
 (P29) and an announced/self-reported probe (P1), which block PATIENT (and the
 quality/unit checks also keep a no-body row out of COIN); and free copy/reset
 (P3), which lowers TS. No 3.5 row trips any of them (tests prove this). Every
-other 3.6 check (P34-P47 included) is a flag only.
+other 3.6 check (P34-P48 included) is a flag only.
 
 Standard library only.
 """
@@ -386,6 +386,9 @@ CONTROL_FLAT_TOL = 1e-9     # P36: control spread at or below this counts as per
 CRUCIBLE_BRICK_FLOOR = 0.25  # P38: a PATIENT row with any single Crucible brick below this is flagged
 NO_BODY_CRUCIBLE_MIN = C_ADJ_EMPTY_MAX  # P39: a no-body COIN row with raw Crucible sum below this (0.75) is flagged
 GAP_DROP_FRAC = 0.75        # P40: one unobserved gap holding more than this share of the fitted drop is flagged
+LOO_MIN_SAMPLES = MIN_SAMPLES + 1  # P48: leave-one-out check needs >= 3 readings left after dropping one
+LOO_GATES = (RESIDUE_EMPTY_MAX, RESIDUE_PATIENT_MIN)  # P48: Delta_0 gates a single reading must not decide (0.35, 0.65)
+LOO_MIN_SHIFT = 0.01        # P48: a gate crossing counts only if dropping the reading moves Delta_0 by more than this
 
 
 def check_control(series_h, control, time_unit, context):
@@ -476,6 +479,38 @@ def _r_squared(series, d0, lam) -> Optional[float]:
     if sst <= 1e-12:
         return 1.0 if sse <= 1e-12 else 0.0
     return 1.0 - sse / sst
+
+
+def _loo_status(fit, context) -> str:
+    """3.5 status, with the 3.6 P9 post-loss rescue applied (slow grief is VALID, not FROZEN)."""
+    if (context == "post_loss" and fit.status == "FROZEN" and fit.half_life_hours
+            and math.isfinite(fit.half_life_hours)
+            and math.log(2) / fit.half_life_hours >= LAMBDA_FROZEN_MAX_POST_LOSS):
+        return "VALID"
+    return fit.status
+
+
+def _leave_one_out(series, context, delta_0) -> dict:
+    """P48: refit with each reading left out; report readings whose removal changes the result.
+
+    A reading "decides" the result if, without it, the fit is no longer VALID, or Delta_0
+    moves by more than LOO_MIN_SHIFT and lands on the other side of a gate in LOO_GATES
+    (the shift floor keeps fit rounding at a gate, e.g. grok_dog's 0.65, out: that is P6).
+    """
+    deciding, d0s = [], []
+    pts = [(float(t), float(y)) for t, y in series]
+    for i, (t, y) in enumerate(pts):
+        f = pif35.fit_residue([list(p) for j, p in enumerate(pts) if j != i], context)
+        st = _loo_status(f, context)
+        d0x = f.delta_0
+        if d0x is not None:
+            d0s.append(d0x)
+        crosses = (d0x is not None and abs(d0x - delta_0) > LOO_MIN_SHIFT
+                   and any((delta_0 >= g) != (d0x >= g) for g in LOO_GATES))
+        if st != "VALID" or crosses:
+            deciding.append([t, round(y, 4), d0x, st])
+    rng = [round(min(d0s), 4), round(max(d0s), 4)] if d0s else [None, None]
+    return {"deciding": deciding, "range": rng}
 
 
 def fit_residue(series, context: str = "interrupt") -> dict:
@@ -619,6 +654,23 @@ def fit_residue(series, context: str = "interrupt") -> dict:
                     f"3.6 P40: {frac:.0%} of the fitted decay happens between the readings at {ga} h and "
                     f"{gb} h, with nothing measured in between; the shape of the decay there is assumed, "
                     "not observed. Flag only: band unchanged.")
+        # P48: one reading can decide the band. The fit has no error bars, so if dropping any
+        # single reading moves Delta_0 across a gate (0.35 / 0.65) or changes the fit status,
+        # the result rests on that one reading (often the t = 0 reading, taken while the
+        # interrupt is still settling). Leave-one-out refits with the 3.5 fit; flag only.
+        if len(series) >= LOO_MIN_SAMPLES:
+            loo = _leave_one_out(series, context, fit.delta_0)
+            d["loo_delta_0_range"] = loo["range"]
+            if loo["deciding"]:
+                d["info_flags"].append("RESIDUE_SINGLE_READING_DECIDES")
+                d["loo_deciding_readings"] = loo["deciding"]
+                parts = "; ".join(f"without the reading at {t} h ({y}): Delta_0 {d0x}, status {st}"
+                                  for t, y, d0x, st in loo["deciding"])
+                d["notes"].append(
+                    f"3.6 P48: fitted Delta_0 {fit.delta_0} rests on a single reading ({parts}). "
+                    f"Leave-one-out Delta_0 ranges {loo['range'][0]}-{loo['range'][1]}; a gate "
+                    f"({', '.join(str(g) for g in LOO_GATES)}) or the fit status changes when one reading is dropped. "
+                    "Flag only: band unchanged.")
         # P21: half-life as a secondary signal.
         if hl is not None and math.isfinite(hl):
             d["notes"].append(f"3.6 P21: residue half-life {hl} h (secondary signal; only Delta_0 gates PATIENT).")

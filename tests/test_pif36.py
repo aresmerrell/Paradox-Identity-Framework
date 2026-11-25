@@ -1479,3 +1479,65 @@ class TestP47SelfRecognitionModality(unittest.TestCase):
     def test_stable_35_ignores_key(self):
         row = self._row(sr={"test_modality": "visual", "primary_modality": "olfactory"})
         self.assertEqual(pif35.score_row(row).pct_35, pif35.score_row(self._row()).pct_35)
+
+
+class TestP48SingleReadingDecides(unittest.TestCase):
+    """P48: a band that rests on one reading (leave-one-out crosses a gate) is flagged (flag only)."""
+
+    BRICKS = [1.0] * 20
+    # Δ₀ 0.7196 (PATIENT); without the t = 0 reading Δ₀ is 0.6196 (COIN).
+    ONE_READING = [[0, 0.78], [1, 0.55], [2, 0.47], [4, 0.37], [8, 0.22], [24, 0.03]]
+
+    def test_one_reading_carries_patient_flagged(self):
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=self.ONE_READING)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertIn("RESIDUE_SINGLE_READING_DECIDES", r.flags_36)
+        dec = r.residue["loo_deciding_readings"]
+        self.assertEqual([x[0] for x in dec], [0.0])
+        self.assertLess(dec[0][2], pif36.RESIDUE_PATIENT_MIN)
+        self.assertTrue(any("3.6 P48" in n for n in r.notes))
+
+    def test_stable_35_band_unchanged(self):
+        r = pif35.score(self.BRICKS, 2.0, True, True, residue_series=self.ONE_READING)
+        self.assertEqual(r.band, "PATIENT")
+        f = pif35.fit_residue(self.ONE_READING[1:])
+        self.assertLess(f.delta_0, pif35.RESIDUE_PATIENT_MIN)
+
+    def test_clean_curve_not_flagged(self):
+        s = pif35.residue_series_from_curve(0.8, 0.6)
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=s)
+        self.assertNotIn("RESIDUE_SINGLE_READING_DECIDES", r.flags_36)
+        lo, hi = r.residue["loo_delta_0_range"]
+        self.assertLess(hi - lo, 0.01)
+
+    def test_replicated_first_reading_not_flagged(self):
+        # A second, independent reading at t = 0.25 h backs the early level up.
+        s = self.ONE_READING[:1] + [[0.25, 0.70]] + self.ONE_READING[1:]
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=s)
+        self.assertNotIn("RESIDUE_SINGLE_READING_DECIDES", r.flags_36)
+
+    def test_rounding_at_gate_is_not_a_deciding_reading(self):
+        # grok_dog's Δ₀ sits on 0.65 by rounding (P6); leave-one-out wobble of 0.0002 is not P48.
+        dog = [r for r in _rows() if r["id"] == "grok_dog"][0]
+        self.assertNotIn("RESIDUE_SINGLE_READING_DECIDES", pif36.score_row(dog).flags_36)
+
+    def test_three_readings_skipped(self):
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=[[0, 0.8], [2, 0.3], [6, 0.05]])
+        self.assertNotIn("loo_delta_0_range", r.residue)
+
+    def test_status_change_counts(self):
+        out = pif36._leave_one_out([[0, 0.5], [1, 0.3], [2, 0.18], [3, 0.11]], "interrupt", 0.5)
+        self.assertEqual(out["deciding"], [])
+        # Full fit VALID (Δ₀ 0.3038); without the 1 h reading the fit is INSTANT.
+        out = pif36._leave_one_out([[0, 0.3], [1, 0.12], [2, 0.0], [3, 0.0]], "interrupt", 0.3038)
+        by_t = {x[0]: x for x in out["deciding"]}
+        self.assertEqual(by_t[1.0][3], "INSTANT")
+
+    def test_no_table_row_flagged(self):
+        for row in _rows():
+            self.assertNotIn("RESIDUE_SINGLE_READING_DECIDES", pif36.score_row(row).flags_36, row["id"])
+
+
+def _rows():
+    t = _load_table()
+    return t["rows"] if isinstance(t, dict) else t
