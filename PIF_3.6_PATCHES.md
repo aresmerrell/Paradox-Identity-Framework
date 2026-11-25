@@ -7,7 +7,7 @@ This is the **running list of known weaknesses in PIF and how to fix them**. It 
 - **PIF 3.5 stays the stable version** (release `3.5`), and the v2.0 core stays in the repo as a baseline. `pif36.py` imports `pif35.py` without changing it. Under 3.6 defaults every row of `species_table_v35.json` scores exactly as it does in 3.5 (same band, same percentages); the tests check this.
 - Each entry lists: Problem · Why it matters · Proposed fix · Size · Status · Source.
 - Sources so far: Gemini's critical review (Oct 28 2026), Grok's review of 3.5 main (Oct 28 2026, relayed by Jarrod), Grok's review of this patch list (Oct 28 2026), and Athena's own audit. Where reviewers raised the same point, it is one entry marked "also raised by …".
-- Numbers quoted below were checked by running `pif35.py` / `pif36.py` on Oct 28, 2026.
+- Numbers in each entry were checked by running `pif35.py` / `pif36.py` on the date in that entry's Source line (P1–P21: Oct 28, 2026).
 
 **Status key:** `patched on pif-3.6-draft` = implemented and tested on the draft branch, awaiting approval · `recorded — for Jarrod's review` = written down only · `needs Jarrod's decision` = a choice only he should make.
 
@@ -143,7 +143,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Proposed fix:** Compute R² for the fit. If R² < 0.80 the data is not an exponential decay: flag `RESIDUE_POOR_FIT` and block PATIENT (and the no-body COIN path).
 - **Size:** Small.
 - **Status:** Patched on pif-3.6-draft. No table row is affected (they are all clean curves).
-- **Source:** Athena.
+- **Source:** Athena audit, Oct 28 2026.
 
 ## P8. Δ₀ can be extrapolated, or fitted from a too-short window
 - **Problem:** Δ₀ is the residue at the moment of the interrupt, but 3.5 accepts series that never observed it. Samples starting at 24 h (0.30, 0.20, 0.13) are extrapolated back to Δ₀ = 0.69 and score **PATIENT**, though no observed value was above 0.30. Separately, three samples over 12 minutes (0.66, 0.65, 0.64) score PATIENT with a fitted half-life of 4.5 h that was never actually watched.
@@ -151,7 +151,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Proposed fix:** Flag `RESIDUE_EXTRAPOLATED` (block PATIENT) when the first sample is later than one fitted half-life after the interrupt. In the interrupt context, flag `RESIDUE_SHORT_SPAN` (block PATIENT) when the samples cover less than one half-life. Post-loss rows keep Dog Test Rule 4's 48 h span rule instead, because slow grief cannot be watched for a full half-life in a 3–6 month trial.
 - **Size:** Small.
 - **Status:** Patched on pif-3.6-draft. No table row is affected.
-- **Source:** Athena.
+- **Source:** Athena audit, Oct 28 2026.
 
 ## P9. The "frozen" bound rejects real, slow grief
 - **Problem:** 3.5 rejects any residue with λ < 0.001/h (half-life over ~29 days) as FROZEN ("scripted"), in every context. A human-like grief curve with a 60-day half-life is rejected as FROZEN and fails Rule 4. The Dog Test itself says the full run observes recovery over "weeks".
@@ -159,7 +159,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Proposed fix:** In the post-loss context only, lower the frozen bound to λ < 0.0001/h (half-life ~289 days). The interrupt context keeps 0.001/h.
 - **Size:** Small.
 - **Status:** Patched on pif-3.6-draft. *Decision for Jarrod:* the 0.0001/h value is a first guess. No table row is affected.
-- **Source:** Athena.
+- **Source:** Athena audit, Oct 28 2026.
 
 ## P10. Crucible is counted twice, and ψ stacks harder on the Sky-Scraper than the docs say
 - **Problem:** In (C + S·M)/20 with M = C/5, the Crucible enters twice: once directly and once through M. With a full Sky-Scraper, one Crucible brick is worth up to 20 percentage points, one Sky-Scraper brick at most 5. In 3.5, ψ also stacks: the Sky-Scraper term keeps (1 − ψ)(1 − 0.5ψ) of its value while the Crucible keeps (1 − ψ), so the Sky-Scraper is cut *harder*, though PIF_3.5.md called it "milder". At cost ratio 1.3 (ψ = 0.262): Crucible keeps 73.8%, Sky-Scraper term keeps 64.1%.
@@ -167,7 +167,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Proposed fix:** *Small (done):* correct the PIF_3.5.md wording (scoring unchanged). *Big:* decide whether the Sky-Scraper should really be cut harder than the Crucible; if not, use S·(1 − 0.5ψ)·M (unadjusted M) or apply ψ once. Any formula change moves every percentage, so it is for Jarrod to decide.
 - **Size:** Big (formula), with the doc fix done.
 - **Status:** Doc correction patched on pif-3.6-draft. Formula change recorded — for Jarrod's review.
-- **Source:** Athena.
+- **Source:** Athena audit, Oct 28 2026.
 
 ## P11. The table grants humans what AIs must prove (Paradox Test symmetry)
 - **Problem:** The Paradox Test says humans and AIs must face the same test. In the table, the human rows with residue (healthy, average, 25-year-old, teenager, dementia, brain-damaged) are all *given* cost ratio 2.0 and a residue curve generated from Δ₀ 0.8, λ 0.6/h, while the baseline AI rows (Grok baseline, default LLM, v1.4 Grok, fluent-free) are *given* cost ratio 1.01 and an instant-reset curve (Δ₀ 0.05, λ 6/h). None of these were measured. Embodiment is also counted three times: brick 1, the `costable_self` input, and Dog Test Rule 1.
@@ -206,7 +206,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Proposed fix:** Optional `retest_due` (ISO date) on a row; if a COIN result is past it, flag `COIN_RETEST_OVERDUE`. The band itself is not changed automatically.
 - **Size:** Small.
 - **Status:** Patched on pif-3.6-draft.
-- **Source:** Athena.
+- **Source:** Athena audit, Oct 28 2026.
 
 ## P15. Bad inputs are accepted silently
 - **Problem:** 3.5 accepts an infinite cost ratio (full credit) and silently clamps residue values outside 0–1 (e.g. 1.4 becomes 1.0).
@@ -214,7 +214,7 @@ Per Grok's review of the patch list (Oct 28 2026), agreed by Athena. Jarrod sets
 - **Proposed fix:** Reject cost ratios that are infinite, NaN or negative; reject non-finite residue samples; flag `RESIDUE_CLAMPED` when values outside 0–1 are clamped.
 - **Size:** Small.
 - **Status:** Patched on pif-3.6-draft.
-- **Source:** Athena.
+- **Source:** Athena audit, Oct 28 2026.
 
 ## P16. The contradiction flag ignores COIN, and no-body COIN always shows 0%
 - **Problem:** `BAND_PCT_CONTRADICTION` checks EMPTY ≥ 25% and PATIENT < 25% only. On the no-body path the percentage is always about 0% (cost ratio ≈ 1.01 means TS = 0), so `v21_interrupt_messy_no_body` is COIN at 0.00% with no note. The 25% line is itself arbitrary (open since 3.5).
