@@ -1538,6 +1538,83 @@ class TestP48SingleReadingDecides(unittest.TestCase):
             self.assertNotIn("RESIDUE_SINGLE_READING_DECIDES", pif36.score_row(row).flags_36, row["id"])
 
 
+class TestP49ReadingsDuringInterrupt(unittest.TestCase):
+    """P49: residue readings taken before the interrupt ended are flagged (flag only)."""
+
+    # Slow adaptation while a 30 h interrupt is still on (Δ₀ 0.9, half-life 6 h) ...
+    DURING = pif35.residue_series_from_curve(0.9, math.log(2) / 6)
+    # ... and an input-tracking system: back to ~0 as soon as the interrupt ends.
+    AFTER = [[30, 0.02], [30.5, 0.0], [31, 0.0], [32, 0.0], [36, 0.0]]
+
+    def _row(self, series, window, **extra):
+        row = dict(id="p49", crucible=[1.0] * 5, sky_scraper=[1.0] * 15, cost_ratio=2.0,
+                   protects_continuity=True, costable_self=True, residue_series=series)
+        if window is not None:
+            row["interrupt_window"] = window
+        row.update(extra)
+        return row
+
+    def test_stable_35_band_is_patient(self):
+        r = pif35.score(FULL, 2.0, True, True, residue_series=self.DURING + self.AFTER)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertEqual(r.residue["status"], "VALID")
+
+    def test_during_readings_flagged_with_post_end_refit(self):
+        r = pif36.score_row(self._row(self.DURING + self.AFTER, {"end": 30}))
+        self.assertEqual(r.band, "PATIENT")  # flag only
+        self.assertIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+        note = [n for n in r.notes if "3.6 P49" in n][0]
+        self.assertIn("6 of 11", note)
+        self.assertIn("band COIN", note)
+
+    def test_no_after_readings(self):
+        r = pif36.score_row(self._row(self.DURING, {"end": 30}))
+        self.assertIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+        self.assertTrue(any("after-effect itself is not measured" in n for n in r.notes))
+
+    def test_ongoing(self):
+        r = pif36.score_row(self._row(self.DURING, {"end": "ongoing"}))
+        self.assertIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_unstated(self):
+        r = pif36.score_row(self._row(self.DURING, {"end": "unstated"}))
+        self.assertEqual(r.flags_36.count("INTERRUPT_END_UNSTATED"), 1)
+        self.assertNotIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+
+    def test_all_after_end_not_flagged(self):
+        r = pif36.score_row(self._row(self.DURING, {"end": 0}))
+        self.assertNotIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+        self.assertTrue(any("at or after the interrupt ended" in n for n in r.notes))
+
+    def test_post_loss_not_split(self):
+        r = pif36.score_row(self._row(self.DURING, {"end": 30}, residue_context="post_loss"))
+        self.assertNotIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+        self.assertNotIn("INTERRUPT_END_UNSTATED", r.flags_36)
+
+    def test_bad_inputs(self):
+        for w in ("30", {"end": -1}, {"end": True}, {"end": "later"}, {"start": 0, "end": 3}, {}, {"foo": 1}):
+            if w == {}:
+                continue  # empty dict = key not given
+            with self.assertRaises(ValueError, msg=w):
+                pif36.score_row(self._row(self.DURING, w))
+        with self.assertRaises(ValueError):
+            pif36.score_row(self._row(self.DURING, {"end": float("nan")}))
+
+    def test_band_never_changes(self):
+        for row in _rows():
+            for w in ({"end": "ongoing"}, {"end": "unstated"}, {"end": 1}):
+                base = pif36.score_row(row)
+                r = pif36.score_row(dict(row, interrupt_window=w))
+                self.assertEqual((r.band, r.pct_35), (base.band, base.pct_35), row["id"])
+
+    def test_no_table_row_flagged(self):
+        for row in _rows():
+            f = pif36.score_row(row).flags_36
+            self.assertNotIn("RESIDUE_DURING_INTERRUPT", f, row["id"])
+            self.assertNotIn("INTERRUPT_END_UNSTATED", f, row["id"])
+
+
 def _rows():
     t = _load_table()
     return t["rows"] if isinstance(t, dict) else t

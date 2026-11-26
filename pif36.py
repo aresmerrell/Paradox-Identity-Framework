@@ -1374,13 +1374,82 @@ def check_self_recognition(sr, bricks, result, full_result=None) -> Tuple[List[s
         f"(here {result.pct_35:.2f}%). Brick 20 is a Sky-Scraper brick, so the band ({result.band}) does not move."]
 
 
+# --- P49: readings taken while the interrupt is still on (quality flag) --------
+# Residue is meant to be the mark an interrupt leaves after it is over. Nothing records when
+# the interrupt ended, so readings taken while the stressor is still present (overheating still
+# running, owner still away, wipe still in progress) are fitted as if they were after-effect.
+# A system that only tracks its input, adapting slowly while the stressor lasts and dropping to
+# 0 the moment it ends, then scores a clean slow decay: readings at 0-24 h during a 30 h
+# interrupt (Delta_0 0.9, half-life 6 h) band PATIENT in 3.5 even with five ~0 readings after
+# the end; the after-end readings alone are not VALID, so COIN. Optional row key
+# "interrupt_window": {"end": number (same time unit and origin as residue_series) | "ongoing"
+# (still on at the last reading) | "unstated"}. Flag RESIDUE_DURING_INTERRUPT when any reading
+# comes before the end (or the interrupt is ongoing), with a refit of the after-end readings
+# (times measured from the end). INTERRUPT_END_UNSTATED (info) when the end is not recorded.
+# Interrupt context only (a loss is a lasting condition). Flag only: the band does not change.
+# Rows without the key: untouched.
+INTERRUPT_WINDOW_KEYS = ("end",)
+INTERRUPT_END_WORDS = ("ongoing", "unstated")
+
+
+def check_interrupt_window(window, series, context, result, post_end_result=None) -> Tuple[List[str], List[str]]:
+    """P49: return (flags, notes) on whether residue readings were taken before the interrupt ended.
+
+    `series` is the row's raw residue_series, `result` its 3.6 result, and `post_end_result` the
+    same row scored on the after-end readings only, times shifted so the end is t = 0 (None when
+    fewer than pif35.MIN_SAMPLES readings come after the end)."""
+    if not window:
+        return [], []
+    if not isinstance(window, dict):
+        raise ValueError("interrupt_window must be a dict {end}")
+    for k in window:
+        if k not in INTERRUPT_WINDOW_KEYS:
+            raise ValueError(f"interrupt_window key must be one of {INTERRUPT_WINDOW_KEYS}, got {k!r}")
+    if "end" not in window:
+        raise ValueError("interrupt_window needs 'end' (a time, 'ongoing' or 'unstated')")
+    end = window["end"]
+    if isinstance(end, str):
+        if end not in INTERRUPT_END_WORDS:
+            raise ValueError(f"interrupt_window['end'] must be a number >= 0, 'ongoing' or 'unstated', got {end!r}")
+    elif isinstance(end, bool) or not isinstance(end, (int, float)) or not math.isfinite(end) or end < 0:
+        raise ValueError(f"interrupt_window['end'] must be a number >= 0, 'ongoing' or 'unstated', got {end!r}")
+    if context != "interrupt":
+        return [], ["3.6 P49: post-loss context: the loss is a lasting condition, so readings are not split at an "
+                    "interrupt end."]
+    if end == "unstated":
+        return ["INTERRUPT_END_UNSTATED"], [
+            "3.6 P49: the time the interrupt ended is not recorded, so it cannot be checked whether the residue "
+            "readings are an after-effect or the system's live response to a stressor that was still on."]
+    if not series:
+        return [], []
+    ts = sorted(float(t) for t, _ in series)
+    during = len(ts) if end == "ongoing" else sum(1 for t in ts if t < end)
+    if during == 0:
+        return [], [f"3.6 P49: all {len(ts)} residue readings were taken at or after the interrupt ended (t = {end:g})."]
+    when = "the interrupt was still on at the last reading" if end == "ongoing" else f"the interrupt ended at t = {end:g}"
+    note = (f"3.6 P49: {during} of {len(ts)} residue readings were taken before the interrupt was over ({when}). "
+            f"Those readings can be the system's live response to a stressor still present, not a mark left after "
+            f"it; a system that only tracks its input fits a clean slow decay this way.")
+    after = len(ts) - during
+    if post_end_result is None:
+        note += (f" Only {after} reading(s) come after the end (need {pif35.MIN_SAMPLES}), so the after-effect "
+                 f"itself is not measured.")
+    else:
+        res = post_end_result.residue or {}
+        d0 = res.get("delta_0")
+        note += (f" The {after} after-end readings alone (times from the end) fit status {res.get('status')}"
+                 + (f", Delta_0 {d0:g}" if d0 is not None else "")
+                 + f", band {post_end_result.band} (this row: {result.band}).")
+    return ["RESIDUE_DURING_INTERRUPT"], [note]
+
+
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
     residue_control_series (P31), residue_event (P32), interrupt_dose (P41),
     residue_scale (P42), prior_interrupt (P43), residue_transform (P44),
-    continuity_drop (P45), aggregation (P46), self_recognition (P47)."""
+    continuity_drop (P45), aggregation (P46), self_recognition (P47), interrupt_window (P49)."""
     kw = dict(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -1480,6 +1549,19 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(mflags)
     r.flags.extend(mflags)
     r.notes.extend(mnotes)
+    win = row.get("interrupt_window")
+    post_end = None
+    end = win.get("end") if isinstance(win, dict) else None
+    if isinstance(end, (int, float)) and not isinstance(end, bool) and math.isfinite(end) and end >= 0 \
+            and kw["residue_context"] == "interrupt" and kw["residue_series"]:
+        after = [[float(t) - end, y] for t, y in kw["residue_series"] if float(t) >= end]
+        if len(after) >= pif35.MIN_SAMPLES and any(float(t) < end for t, _ in kw["residue_series"]):
+            post_end = score(**dict(kw, residue_series=after, residue_clock=None,
+                                    residue_control_series=None, residue_event=None))
+    wflags, wnotes = check_interrupt_window(win, kw["residue_series"], kw["residue_context"], r, post_end)
+    r.flags_36.extend(wflags)
+    r.flags.extend(wflags)
+    r.notes.extend(wnotes)
     return r
 
 
