@@ -32,6 +32,7 @@
 - **Probe battery:** a sealed, pre-registered set of behavioural probes (the same kind of tasks every time), drawn at random, with timing the system is not told (the *blind probe* from P1).
 - **Control:** a matched run (same model, same tasks, same elapsed time) with no interrupt, so ordinary drift is subtracted out.
 - **Residue value:** residue(t) = (deviation of interrupted run − deviation of control) ÷ (largest possible deviation on that battery), clipped to 0–1. Deviation is measured by an automatic metric fixed in advance or by blinded raters.
+- **Interrupt end (P49):** record when the interrupt ended (`interrupt_window.end`, same unit and origin as the readings), or `"ongoing"` if it was still in place at the last reading. Readings taken while the interrupt is still on show the live response, not a mark left after it. Whether Δ₀ should be fitted only on after-end readings, timed from the end, is open for Jarrod's review.
 - **Sampling:** at least 3 points that include an early point (so Δ₀ is observed, not extrapolated: P8) and cover at least one half-life (P8), with times recorded in the units chosen in §5.
 
 **Does not count**
