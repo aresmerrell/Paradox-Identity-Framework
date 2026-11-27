@@ -12,7 +12,7 @@ flags (P7, P8, P24, P25, P27, P30, P31, P32, P33), the time-unit/clock checks
 (P29) and an announced/self-reported probe (P1), which block PATIENT (and the
 quality/unit checks also keep a no-body row out of COIN); and free copy/reset
 (P3), which lowers TS. No 3.5 row trips any of them (tests prove this). Every
-other 3.6 check (P34-P48 included) is a flag only.
+other 3.6 check (P34-P50 included) is a flag only.
 
 Standard library only.
 """
@@ -1443,13 +1443,40 @@ def check_interrupt_window(window, series, context, result, post_end_result=None
     return ["RESIDUE_DURING_INTERRUPT"], [note]
 
 
+# --- P50: interrupt_evidence is never read on the costable-self path --------------
+# 3.5 asks a no-body system for independent interrupt evidence before its residue can
+# lift it to COIN, but a costable-self system reaches PATIENT on residue with
+# interrupt_evidence false or missing. Flag only; the band is unchanged.
+def check_costable_interrupt_evidence(row_has_key, interrupt_evidence, costable_self, result) -> Tuple[List[str], List[str]]:
+    """P50: return (flags, notes) when a costable-self row leans on residue that no
+    independent observer logged (interrupt_evidence false or not given)."""
+    if not costable_self or interrupt_evidence is True:
+        return [], []
+    if interrupt_evidence not in (False, None):
+        raise ValueError(f"interrupt_evidence must be true or false, got {interrupt_evidence!r}")
+    res = result.residue or {}
+    d0 = res.get("delta_0")
+    if res.get("status") != "VALID" or d0 is None or d0 < RESIDUE_EMPTY_MAX:
+        return [], []
+    said = "is false" if row_has_key else "is not recorded (read as false)"
+    note = (f"3.6 P50: costable self, residue Delta_0 {d0:g} (VALID), but interrupt_evidence {said}: no observer "
+            f"other than the experimenter logged the interrupt. 3.5 never reads interrupt_evidence on the "
+            f"costable-self path, so this residue counts in full; a no-body system with the same residue and no "
+            f"interrupt evidence is EMPTY (LINGUISTIC_RESIDUE_ONLY).")
+    if result.band == "PATIENT":
+        note += (" PATIENT here rests on that uncorroborated residue; if PATIENT required interrupt evidence "
+                 "(for Jarrod's review) this row would be COIN.")
+    return ["COSTABLE_RESIDUE_UNCORROBORATED"], [note]
+
+
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
     residue_control_series (P31), residue_event (P32), interrupt_dose (P41),
     residue_scale (P42), prior_interrupt (P43), residue_transform (P44),
-    continuity_drop (P45), aggregation (P46), self_recognition (P47), interrupt_window (P49)."""
+    continuity_drop (P45), aggregation (P46), self_recognition (P47), interrupt_window (P49). P50 reads the existing
+    interrupt_evidence key on the costable-self path (flag only)."""
     kw = dict(
         bricks=row["crucible"] + row["sky_scraper"],
         cost_ratio=row["cost_ratio"],
@@ -1562,6 +1589,11 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(wflags)
     r.flags.extend(wflags)
     r.notes.extend(wnotes)
+    eflags, enotes = check_costable_interrupt_evidence("interrupt_evidence" in row, row.get("interrupt_evidence"),
+                                                       row["costable_self"], r)
+    r.flags_36.extend(eflags)
+    r.flags.extend(eflags)
+    r.notes.extend(enotes)
     return r
 
 

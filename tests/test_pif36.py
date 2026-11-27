@@ -1615,6 +1615,78 @@ class TestP49ReadingsDuringInterrupt(unittest.TestCase):
             self.assertNotIn("INTERRUPT_END_UNSTATED", f, row["id"])
 
 
+class TestP50CostableResidueUncorroborated(unittest.TestCase):
+    """P50: a costable-self row whose residue nobody independently logged is flagged (flag only)."""
+
+    def _dog(self, **change):
+        row = dict(_by_id("grok_dog"))
+        row.update(change)
+        return row
+
+    def test_stable_35_ignores_interrupt_evidence_on_costable_path(self):
+        for rid in ("grok_dog", "v21_embodied_stakes", "readme_healthy_human"):
+            row = _by_id(rid)
+            a = pif35.score_row(row)
+            b = pif35.score_row(dict(row, interrupt_evidence=False))
+            self.assertEqual((a.band, a.pct_35), (b.band, b.pct_35), rid)
+            self.assertEqual(b.band, "PATIENT")
+            # the same residue without a costable self and without evidence is EMPTY
+            c = pif35.score_row(dict(row, costable_self=False, interrupt_evidence=False))
+            self.assertEqual(c.band, "EMPTY")
+            self.assertIn("LINGUISTIC_RESIDUE_ONLY", c.flags)
+
+    def test_flagged_when_false(self):
+        r = pif36.score_row(self._dog(interrupt_evidence=False))
+        self.assertEqual(r.band, "PATIENT")  # flag only
+        self.assertEqual(r.flags_36.count("COSTABLE_RESIDUE_UNCORROBORATED"), 1)
+        note = [n for n in r.notes if "3.6 P50" in n][0]
+        self.assertIn("is false", note)
+        self.assertIn("would be COIN", note)
+
+    def test_flagged_when_missing(self):
+        row = self._dog()
+        del row["interrupt_evidence"]
+        r = pif36.score_row(row)
+        self.assertIn("COSTABLE_RESIDUE_UNCORROBORATED", r.flags_36)
+        self.assertTrue(any("not recorded" in n for n in r.notes))
+
+    def test_coin_row_flagged_without_patient_sentence(self):
+        r = pif36.score_row(dict(_by_id("readme_overheating_grok"), interrupt_evidence=False))
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("COSTABLE_RESIDUE_UNCORROBORATED", r.flags_36)
+        self.assertFalse(any("would be COIN" in n for n in r.notes if "3.6 P50" in n))
+
+    def test_not_flagged_with_evidence_no_body_or_small_residue(self):
+        self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", pif36.score_row(self._dog()).flags_36)
+        nb = pif36.score_row(self._dog(costable_self=False, interrupt_evidence=False))
+        self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", nb.flags_36)
+        small = pif35.residue_series_from_curve(0.2, 0.1)
+        r = pif36.score_row(self._dog(interrupt_evidence=False, residue_series=small))
+        self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", r.flags_36)
+        none = self._dog(interrupt_evidence=False)
+        none.pop("residue_series", None)
+        self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", pif36.score_row(none).flags_36)
+
+    def test_bad_value_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score_row(self._dog(interrupt_evidence="yes"))
+
+    def test_band_never_changes(self):
+        # costable-self rows only: on the no-body path 3.5 already gates COIN on interrupt_evidence
+        for row in (r for r in _rows() if r["costable_self"]):
+            base = pif36.score_row(row)
+            r = pif36.score_row(dict(row, interrupt_evidence=False))
+            self.assertEqual((r.band, r.pct_35), (base.band, base.pct_35), row["id"])
+
+    def test_no_table_row_flagged(self):
+        for row in _rows():
+            self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", pif36.score_row(row).flags_36, row["id"])
+
+
+def _by_id(rid):
+    return next(r for r in _rows() if r["id"] == rid)
+
+
 def _rows():
     t = _load_table()
     return t["rows"] if isinstance(t, dict) else t
