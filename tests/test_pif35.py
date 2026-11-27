@@ -243,6 +243,23 @@ class TestAdversarialProfiles(unittest.TestCase):
         self.assertEqual(r2.band, "COIN")
 
 
+class TestInterruptEvidenceScope(unittest.TestCase):
+    """Documents where 3.5 reads interrupt_evidence (PIF_3.5.md item 8; see P50 in PIF_3.6_PATCHES.md)."""
+
+    def test_no_body_coin_needs_interrupt_evidence(self):
+        self.assertEqual(pif35.score(FULL, 2.0, False, False, True, curve(0.8, 0.6)).band, "COIN")
+        r = pif35.score(FULL, 2.0, False, False, False, curve(0.8, 0.6))
+        self.assertEqual(r.band, "EMPTY")
+        self.assertIn("LINGUISTIC_RESIDUE_ONLY", r.flags)
+
+    def test_costable_path_does_not_read_interrupt_evidence(self):
+        for d0 in (0.5, 0.8):
+            a = pif35.score(FULL, 2.0, True, True, True, curve(d0, 0.6))
+            b = pif35.score(FULL, 2.0, True, True, False, curve(d0, 0.6))
+            self.assertEqual((a.band, a.pct_35, a.flags), (b.band, b.pct_35, b.flags), d0)
+        self.assertEqual(pif35.score(FULL, 2.0, True, True, False, curve(0.8, 0.6)).band, "PATIENT")
+
+
 class TestV20CoreUnchanged(unittest.TestCase):
     def test_readme_example(self):
         b = [0.7] * 5 + [0.8] * 15  # C 3.5, S 12

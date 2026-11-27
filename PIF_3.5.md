@@ -41,6 +41,7 @@ v2.0 README order: **Crucible = bricks 1–5** (1 embodiment, 2 minimal self, 3 
    - Without a costable self, COIN requires a VALID Δ₀ ≥ 0.35 **and** an independent `interrupt_evidence` flag.
    - Pure linguistic residue stays EMPTY and is flagged `LINGUISTIC_RESIDUE_ONLY`.
    - A system without a costable self can never be PATIENT.
+   - `interrupt_evidence` is read only on this no-body path. With a costable self it changes neither the band nor the percentage (so a costable-self row can reach PATIENT on residue with `interrupt_evidence` false); see P50 in `PIF_3.6_PATCHES.md`.
    - (v3.0 scaled C by residue × 0.5 and sent the v2.1 messy-interrupt case to EMPTY.)
 9. **No biological floor.** Psychopaths and sociopaths get no automatic PATIENT. Residue is meant as behavioural reallocation under cost, not affective report.
 10. **One table.** Every example lives in `species_table_v35.json`. Each row has:
