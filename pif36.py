@@ -12,7 +12,7 @@ flags (P7, P8, P24, P25, P27, P30, P31, P32, P33), the time-unit/clock checks
 (P29) and an announced/self-reported probe (P1), which block PATIENT (and the
 quality/unit checks also keep a no-body row out of COIN); and free copy/reset
 (P3), which lowers TS. No 3.5 row trips any of them (tests prove this). Every
-other 3.6 check (P34-P50 included) is a flag only.
+other 3.6 check (P34-P51 included) is a flag only.
 
 Standard library only.
 """
@@ -1469,13 +1469,73 @@ def check_costable_interrupt_evidence(row_has_key, interrupt_evidence, costable_
     return ["COSTABLE_RESIDUE_UNCORROBORATED"], [note]
 
 
+# --- P51: the cost resource behind cost_ratio is the experimenter's choice --------
+# cost_ratio is one number, but "cost" can be read off several resources (energy,
+# compute, latency, tokens, money, ...) and nothing records which one was used or
+# how many were measured. Reporting the resource with the largest ratio can move a
+# row from EMPTY to COIN or COIN to PATIENT. Optional row key "cost_measure":
+#   {"reported": str, "ratios": {resource: ratio, ...}, "pre_declared": bool}
+# Flag only; the band is unchanged.
+COST_MEASURE_KEYS = ("reported", "ratios", "pre_declared")
+
+
+def check_cost_measure(measure, cost_ratio, result, min_result=None) -> Tuple[List[str], List[str]]:
+    """P51: return (flags, notes) on which resource the reported cost ratio was read from.
+    `min_result` is the row rescored with its lowest measured ratio (when more than one)."""
+    if measure is None:
+        return [], []
+    if not isinstance(measure, dict):
+        raise ValueError("cost_measure must be a dict {reported, ratios, pre_declared}")
+    for k in measure:
+        if k not in COST_MEASURE_KEYS:
+            raise ValueError(f"cost_measure key must be one of {COST_MEASURE_KEYS}, got {k!r}")
+    reported = measure.get("reported")
+    if not isinstance(reported, str) or not reported.strip():
+        raise ValueError("cost_measure needs a non-empty 'reported' naming the resource the cost ratio was read from")
+    pre = measure.get("pre_declared", False)
+    if not isinstance(pre, bool):
+        raise ValueError("cost_measure pre_declared must be true or false")
+    ratios = measure.get("ratios", {reported: cost_ratio})
+    if not isinstance(ratios, dict) or not ratios:
+        raise ValueError("cost_measure ratios must be a non-empty dict {resource: ratio}")
+    for name, v in ratios.items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("cost_measure ratio names must be non-empty strings")
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0:
+            raise ValueError(f"cost_measure ratio for {name!r} must be a finite number >= 0, got {v!r}")
+    if reported not in ratios:
+        raise ValueError(f"cost_measure reported resource {reported!r} is not in ratios")
+    if abs(float(ratios[reported]) - float(cost_ratio)) > 1e-9:
+        raise ValueError(f"cost_measure ratios[{reported!r}] = {ratios[reported]} does not match cost_ratio {cost_ratio}")
+    if len(ratios) == 1:
+        return [], [f"3.6 P51: cost ratio {cost_ratio:g} read from {reported!r}, the only resource recorded."]
+    flags: List[str] = []
+    lo_name = min(ratios, key=lambda k: ratios[k])
+    hi = max(ratios.values())
+    listed = ", ".join(f"{k} {float(v):g}" for k, v in sorted(ratios.items(), key=lambda kv: -kv[1]))
+    note = f"3.6 P51: cost measured on {len(ratios)} resources ({listed}); reported {reported!r} {cost_ratio:g}"
+    if pre:
+        note += ", chosen before testing."
+    elif float(cost_ratio) >= hi:
+        flags.append("COST_RESOURCE_SELECTED")
+        note += (", the largest, and the choice was not fixed in advance: the cost gate reads whichever "
+                 "resource makes the system look most invested.")
+    else:
+        note += ", not the largest; the choice was not fixed in advance."
+    if min_result is not None and min_result.band != result.band:
+        flags.append("COST_RESOURCE_BAND_SENSITIVE")
+        note += (f" On the lowest-ratio resource ({lo_name} {float(ratios[lo_name]):g}) this row would be "
+                 f"{min_result.band} (TS {min_result.throttle_signal:g}), not {result.band}.")
+    return flags, [note]
+
+
 def score_row(row: dict) -> PIF36Result:
     """Score one species-table row. Optional 3.6 row keys: residue_probe, free_copy,
     free_reset, bricks_rater_b (20 values), retest_due (ISO date), measured_on (P22),
     residue_noise_floor (P23, P34), trial_log (P28), residue_time_unit / residue_clock (P29),
     residue_control_series (P31), residue_event (P32), interrupt_dose (P41),
     residue_scale (P42), prior_interrupt (P43), residue_transform (P44),
-    continuity_drop (P45), aggregation (P46), self_recognition (P47), interrupt_window (P49). P50 reads the existing
+    continuity_drop (P45), aggregation (P46), self_recognition (P47), interrupt_window (P49), cost_measure (P51). P50 reads the existing
     interrupt_evidence key on the costable-self path (flag only)."""
     kw = dict(
         bricks=row["crucible"] + row["sky_scraper"],
@@ -1594,6 +1654,17 @@ def score_row(row: dict) -> PIF36Result:
     r.flags_36.extend(eflags)
     r.flags.extend(eflags)
     r.notes.extend(enotes)
+    cm = row.get("cost_measure")
+    low = None
+    if isinstance(cm, dict) and isinstance(cm.get("ratios"), dict) and len(cm["ratios"]) > 1:
+        vals = [v for v in cm["ratios"].values()
+                if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and v >= 0]
+        if len(vals) == len(cm["ratios"]) and min(vals) != kw["cost_ratio"]:
+            low = score(**dict(kw, cost_ratio=float(min(vals))))
+    kflags, knotes = check_cost_measure(cm, kw["cost_ratio"], r, low)
+    r.flags_36.extend(kflags)
+    r.flags.extend(kflags)
+    r.notes.extend(knotes)
     return r
 
 

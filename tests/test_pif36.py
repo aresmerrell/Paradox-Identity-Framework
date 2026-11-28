@@ -1683,6 +1683,71 @@ class TestP50CostableResidueUncorroborated(unittest.TestCase):
             self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", pif36.score_row(row).flags_36, row["id"])
 
 
+class TestP51CostResourceSelected(unittest.TestCase):
+    """P51: the resource behind cost_ratio can be picked after the fact (flag only)."""
+
+    def _row(self, rid, measure):
+        return dict(_by_id(rid), cost_measure=measure)
+
+    def test_stable_35_band_moves_with_resource(self):
+        # the same dog, cost read off a different resource: PATIENT -> COIN -> EMPTY in 3.5
+        dog = _by_id("grok_dog")
+        self.assertEqual(pif35.score_row(dog).band, "PATIENT")
+        self.assertEqual(pif35.score_row(dict(dog, cost_ratio=1.2)).band, "COIN")
+        self.assertEqual(pif35.score_row(dict(dog, cost_ratio=1.1)).band, "EMPTY")
+
+    def test_largest_unannounced_flagged_and_band_sensitive(self):
+        m = {"reported": "energy", "ratios": {"energy": 1.5, "latency": 1.2, "tokens": 1.1}}
+        r = pif36.score_row(self._row("grok_dog", m))
+        self.assertEqual(r.band, "PATIENT")  # flag only
+        self.assertEqual(r.flags_36.count("COST_RESOURCE_SELECTED"), 1)
+        self.assertIn("COST_RESOURCE_BAND_SENSITIVE", r.flags_36)
+        note = [n for n in r.notes if "3.6 P51" in n][0]
+        self.assertIn("would be EMPTY", note)
+        self.assertIn("tokens 1.1", note)
+
+    def test_pre_declared_not_selected_but_still_sensitive(self):
+        m = {"reported": "energy", "ratios": {"energy": 1.5, "tokens": 1.1}, "pre_declared": True}
+        r = pif36.score_row(self._row("grok_dog", m))
+        self.assertNotIn("COST_RESOURCE_SELECTED", r.flags_36)
+        self.assertIn("COST_RESOURCE_BAND_SENSITIVE", r.flags_36)
+        self.assertTrue(any("chosen before testing" in n for n in r.notes))
+
+    def test_not_largest_or_same_band_not_flagged(self):
+        m = {"reported": "energy", "ratios": {"energy": 1.5, "money": 1.9}}
+        r = pif36.score_row(self._row("grok_dog", m))
+        self.assertNotIn("COST_RESOURCE_SELECTED", r.flags_36)
+        self.assertNotIn("COST_RESOURCE_BAND_SENSITIVE", r.flags_36)
+        hive = pif36.score_row(self._row("v14_whole_hive", {"reported": "a", "ratios": {"a": 1.5, "b": 1.2}}))
+        self.assertIn("COST_RESOURCE_SELECTED", hive.flags_36)
+        self.assertNotIn("COST_RESOURCE_BAND_SENSITIVE", hive.flags_36)  # COIN either way
+
+    def test_single_resource_note_only(self):
+        r = pif36.score_row(self._row("grok_dog", {"reported": "energy"}))
+        self.assertFalse({"COST_RESOURCE_SELECTED", "COST_RESOURCE_BAND_SENSITIVE"} & set(r.flags_36))
+        self.assertTrue(any("only resource recorded" in n for n in r.notes))
+
+    def test_bad_values_rejected(self):
+        for m in ("energy", {}, {"reported": " "}, {"reported": "e", "ratios": {"x": 1.5}},
+                  {"reported": "e", "ratios": {"e": 1.4}}, {"reported": "e", "ratios": {"e": 1.5, "t": -1}},
+                  {"reported": "e", "ratios": {"e": 1.5, "t": float("nan")}}, {"reported": "e", "ratios": {"e": 1.5, "t": True}},
+                  {"reported": "e", "pre_declared": "yes"}, {"reported": "e", "extra": 1}, {"reported": "e", "ratios": {}}):
+            with self.assertRaises(ValueError, msg=repr(m)):
+                pif36.score_row(self._row("grok_dog", m))
+
+    def test_band_never_changes(self):
+        for row in _rows():
+            base = pif36.score_row(row)
+            m = {"reported": "r", "ratios": {"r": row["cost_ratio"], "low": 1.0, "high": 2.5}}
+            r = pif36.score_row(dict(row, cost_measure=m))
+            self.assertEqual((r.band, r.pct_35), (base.band, base.pct_35), row["id"])
+
+    def test_no_table_row_flagged(self):
+        for row in _rows():
+            f = pif36.score_row(row).flags_36
+            self.assertFalse({"COST_RESOURCE_SELECTED", "COST_RESOURCE_BAND_SENSITIVE"} & set(f), row["id"])
+
+
 def _by_id(rid):
     return next(r for r in _rows() if r["id"] == rid)
 
