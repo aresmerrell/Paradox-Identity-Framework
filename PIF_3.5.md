@@ -20,6 +20,7 @@ v2.0 README order: **Crucible = bricks 1–5** (1 embodiment, 2 minimal self, 3 
    - The earlier draft used a linear ramp, g = clamp((r − 1.05)/0.45, 0, 1), which reached full cost at 1.5 and cut 22% of C at 1.4.
 2. **ψ folded into the Crucible before banding.** ψ = 1 − TS, and C_adj = C·(1 − ψ). Banding uses C_adj. (v3.0 banding ignored ψ, so a free-talking body could reach PATIENT.)
 3. **Milder ψ on the Sky-Scraper side of the percentage.** pct_35 = (C_adj + S·(1 − 0.5·ψ)·M_adj)/20, with M_adj = C_adj/5.
+   - *Clarification (3.6 patch list, P10):* the extra Sky-Scraper factor (1 − 0.5·ψ) is milder on its own, but it stacks on top of M_adj, which already carries (1 − ψ). The Sky-Scraper term therefore keeps (1 − ψ)(1 − 0.5·ψ) of its v2.0 value, which is *more* than the Crucible's (1 − ψ) cut. Example at r = 1.3 (ψ = 0.262): the Crucible keeps 73.8%, the Sky-Scraper term keeps 64.1%. The scoring is unchanged; only the description is corrected.
 4. **Band and percentage contradiction flag.** `BAND_PCT_CONTRADICTION` fires when the band is EMPTY with pct_35 ≥ 25%, or PATIENT with pct_35 < 25%. The band governs, and the note says why.
 5. **PATIENT gate.** PATIENT requires all of the following:
    - costable_self

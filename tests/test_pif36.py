@@ -1,0 +1,1757 @@
+"""Tests for the PIF 3.6 draft patches (pif36.py). See PIF_3.6_PATCHES.md.
+
+Key guarantee: under 3.6 defaults every 3.5 species row scores identically
+(band, percentages, 3.5 flags), and new optional inputs never raise a band.
+"""
+
+import json
+import math
+import os
+import random
+import sys
+import unittest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+import pif35  # noqa: E402
+import pif36  # noqa: E402
+
+with open(os.path.join(ROOT, "species_table_v35.json"), encoding="utf-8") as _f:
+    ROWS = json.load(_f)["rows"]
+
+
+def _load_table():
+    """Fresh copy of the species table (closes the file; avoids ResourceWarning)."""
+    with open(os.path.join(ROOT, "species_table_v35.json"), encoding="utf-8") as f:
+        return json.load(f)
+
+FULL = [1.0] * 20
+GOOD = pif35.residue_series_from_curve(0.8, 0.6)          # clean PATIENT-grade decay
+ORDER = pif36.BAND_ORDER
+
+
+def same_as_35(r36, r35):
+    flags35 = [f for f in r36.flags if f not in r36.flags_36]
+    return (r36.band, r36.pct_v20, r36.pct_35, r36.c_adj, r36.throttle_signal, flags35, r36.band_reasons) == \
+           (r35.band, r35.pct_v20, r35.pct_35, r35.c_adj, r35.throttle_signal, r35.flags, r35.band_reasons)
+
+
+class TestBackwardCompatible(unittest.TestCase):
+    def test_every_species_row_unchanged(self):
+        for row in ROWS:
+            with self.subTest(row=row["id"]):
+                self.assertTrue(same_as_35(pif36.score_row(row), pif35.score_row(row)))
+
+    def test_random_inputs_match_35_when_no_36_gate_fires(self):
+        rng = random.Random(36)
+        for _ in range(400):
+            bricks = [round(rng.random(), 2) for _ in range(20)]
+            cr = round(rng.uniform(0.9, 2.2), 3)
+            prot, cost, ev = rng.random() < 0.6, rng.random() < 0.7, rng.random() < 0.5
+            series = pif35.residue_series_from_curve(rng.uniform(0, 1), 10 ** rng.uniform(-2.5, 1)) if rng.random() < 0.8 else None
+            r35 = pif35.score(bricks, cr, prot, cost, ev, series)
+            r36 = pif36.score(bricks, cr, prot, cost, ev, series)
+            blocking = {"RESIDUE_POOR_FIT", "RESIDUE_SHORT_SPAN", "RESIDUE_EXTRAPOLATED",
+                        "RESIDUE_FEW_TIMES", "RESIDUE_CLUSTERED_TIMES", "RESIDUE_ABOVE_OBSERVED",
+                        "RESIDUE_NON_WALL_CLOCK", "RESIDUE_CLOCK_MISMATCH", "RULE4_UNOBSERVED",
+                        "RESIDUE_TAIL_PADDED_FIT"}
+            if blocking & set(r36.flags_36):
+                self.assertLessEqual(ORDER[r36.band], ORDER[r35.band])
+            else:
+                self.assertTrue(same_as_35(r36, r35))
+
+
+class TestP1ResidueProbe(unittest.TestCase):
+    def test_self_report_and_announced_cap_at_coin(self):
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, GOOD).band, "PATIENT")
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, GOOD, residue_probe="blind").band, "PATIENT")
+        for p in ("self_report", "announced"):
+            r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_probe=p)
+            self.assertEqual(r.band, "COIN")
+            self.assertIn("RESIDUE_UNPROBED", r.flags)
+
+    def test_bad_probe_value_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD, residue_probe="trust me")
+
+
+class TestP2TwoRaters(unittest.TestCase):
+    def test_agreeing_raters_no_flag(self):
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, bricks_rater_b=[0.95] * 20)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertNotIn("RATER_DISAGREEMENT", r.flags)
+
+    def test_disagreement_flagged_and_split_takes_lower_band(self):
+        b = [0.3] * 5 + [1.0] * 15            # rater B: weak Crucible -> C_adj < 2.5
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, bricks_rater_b=b)
+        self.assertIn("RATER_DISAGREEMENT", r.flags)
+        self.assertIn("RATER_BAND_SPLIT", r.flags)
+        self.assertEqual(r.raters["bricks_over_tol"], [1, 2, 3, 4, 5])
+        self.assertEqual(r.band, "COIN")
+
+
+class TestP3FreeCopy(unittest.TestCase):
+    def test_free_copy_or_reset_blocks_patient(self):
+        for kw in ({"free_copy": True}, {"free_reset": True}):
+            r = pif36.score(FULL, 2.0, True, True, True, GOOD, **kw)
+            self.assertLess(r.throttle_signal, pif36.TS_PATIENT_MIN)
+            self.assertNotEqual(r.band, "PATIENT")
+        both = pif36.score(FULL, 2.0, True, True, True, GOOD, free_copy=True, free_reset=True)
+        self.assertAlmostEqual(both.throttle_signal, 0.0625, places=4)
+        self.assertEqual(both.band, "EMPTY")
+
+
+class TestP5Margins(unittest.TestCase):
+    def test_dog_is_threshold_adjacent_and_unrounded_below_bar(self):
+        dog = next(r for r in ROWS if r["id"] == "grok_dog")
+        r = pif36.score_row(dog)
+        self.assertEqual(r.band, "PATIENT")            # unchanged from 3.5
+        self.assertIn("THRESHOLD_ADJACENT", r.flags)
+        self.assertLess(r.margins["delta0_unrounded"], 0.65)   # passes only at 4-dp rounding (P6)
+
+
+class TestP7P8FitQuality(unittest.TestCase):
+    def test_oscillating_series_not_patient(self):
+        osc = [[0, 0.9], [1, 0.1], [2, 0.9], [3, 0.1]]
+        self.assertEqual(pif35.score(FULL, 2.0, True, True, True, osc).band, "PATIENT")   # 3.5 hole
+        r = pif36.score(FULL, 2.0, True, True, True, osc)
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("RESIDUE_POOR_FIT", r.flags)
+
+    def test_extrapolated_delta0_not_patient(self):
+        late = [[24, 0.3], [36, 0.2], [48, 0.13]]
+        self.assertEqual(pif35.score(FULL, 2.0, True, True, True, late).band, "PATIENT")  # 3.5 hole
+        r = pif36.score(FULL, 2.0, True, True, True, late)
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("RESIDUE_EXTRAPOLATED", r.flags)
+
+    def test_short_span_not_patient(self):
+        short = [[0, 0.66], [0.1, 0.65], [0.2, 0.64]]
+        self.assertEqual(pif35.score(FULL, 2.0, True, True, True, short).band, "PATIENT")  # 3.5 hole
+        r = pif36.score(FULL, 2.0, True, True, True, short)
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("RESIDUE_SHORT_SPAN", r.flags)
+
+    def test_no_body_coin_needs_quality_fit(self):
+        osc = [[0, 0.9], [1, 0.1], [2, 0.9], [3, 0.1]]
+        self.assertEqual(pif36.score(FULL, 1.0, False, False, True, osc).band, "EMPTY")
+
+
+class TestP9PostLossFrozen(unittest.TestCase):
+    def test_slow_grief_is_valid_post_loss(self):
+        lam = math.log(2) / (60 * 24)          # 60-day half-life
+        s = pif35.residue_series_from_curve(0.8, lam, (0, 24, 48, 96, 240, 720, 1440))
+        self.assertEqual(pif35.score(FULL, 2.0, True, True, True, s, "post_loss").residue["status"], "FROZEN")
+        r = pif36.score(FULL, 2.0, True, True, True, s, "post_loss")
+        self.assertEqual(r.residue["status"], "VALID")
+        self.assertEqual(r.band, "PATIENT")
+        # an MVV-length (72 h) post-loss window is enough; no full half-life needed post-loss
+        s72 = pif35.residue_series_from_curve(0.8, lam, (0, 1, 2, 4, 8, 24, 48, 72))
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, s72, "post_loss").band, "PATIENT")
+
+    def test_still_frozen_in_interrupt_context_and_below_new_bound(self):
+        s = pif35.residue_series_from_curve(0.8, 5e-4, (0, 24, 48, 96, 240, 720, 1440))
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, s).residue["status"], "FROZEN")
+        s2 = pif35.residue_series_from_curve(0.8, 1e-5, (0, 24, 48, 96, 240, 720))
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, s2, "post_loss").residue["status"], "FROZEN")
+
+
+class TestP12Provenance(unittest.TestCase):
+    def test_all_current_rows_are_provisional(self):
+        summary = pif36.provenance_summary(ROWS)
+        self.assertEqual(summary["rows"], len(ROWS))
+        self.assertEqual(summary["measured_residue"], 0)
+        self.assertIn("PROVISIONAL_DATA", pif36.score_row(ROWS[0]).flags)
+
+
+class TestP14CoinRetest(unittest.TestCase):
+    def test_overdue_coin_flagged(self):
+        r = pif36.score(FULL, 2.0, True, True, retest_due="2026-01-01", as_of="2026-10-28")
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("COIN_RETEST_OVERDUE", r.flags)
+        r = pif36.score(FULL, 2.0, True, True, retest_due="2027-01-01", as_of="2026-10-28")
+        self.assertNotIn("COIN_RETEST_OVERDUE", r.flags)
+
+
+class TestP15Inputs(unittest.TestCase):
+    def test_bad_cost_ratio_rejected(self):
+        for bad in (float("inf"), -1.0, float("nan")):
+            with self.assertRaises(ValueError):
+                pif36.score(FULL, bad, True, True)
+
+    def test_out_of_range_residue_flagged(self):
+        r = pif36.score(FULL, 2.0, True, True, True, [[0, 1.4], [1, 0.8], [2, 0.44], [4, 0.13]])
+        self.assertIn("RESIDUE_CLAMPED", r.flags)
+
+
+class TestP18OpenConstants(unittest.TestCase):
+    def test_defaults_equal_35_constants(self):
+        self.assertEqual(pif36.NOT_PROTECTING_WEIGHT, pif35.NOT_PROTECTING_WEIGHT)
+        r = pif36.score(FULL, 1.6, False, True, True, GOOD)
+        self.assertEqual(r.throttle_signal, round(pif35.throttle_signal(1.6, False), 4))
+
+    def test_weight_parameter_and_sensitivity_note(self):
+        b = [0.5] * 20
+        r = pif36.score(b, 1.25, False, True, True)
+        self.assertEqual(r.band, "EMPTY")
+        self.assertEqual(r.sensitivity["not_protecting_weight"]["alternatives"][0.75], "COIN")
+        self.assertTrue(any("band would be COIN at 0.75" in n for n in r.notes))
+        self.assertEqual(pif36.score(b, 1.25, False, True, True, not_protecting_weight=0.75).band, "COIN")
+        with self.assertRaises(ValueError):
+            pif36.score(b, 1.25, False, True, not_protecting_weight=1.5)
+
+    def test_contradiction_threshold_parameter(self):
+        baby = next(r for r in ROWS if r["id"] == "grok_baby")          # PATIENT at 30.46%
+        args = dict(bricks=baby["crucible"] + baby["sky_scraper"], cost_ratio=baby["cost_ratio"],
+                    protects_continuity=True, costable_self=True, interrupt_evidence=baby.get("interrupt_evidence", False),
+                    residue_series=baby["residue_series"])
+        r = pif36.score(**args)
+        self.assertNotIn("BAND_PCT_CONTRADICTION", r.flags)
+        self.assertEqual(r.sensitivity["pct_contradiction"]["alternatives"], {20.0: False, 30.0: False})
+        r35 = pif36.score(**args, pct_contradiction=35.0)              # 30.46% PATIENT < 35% -> flagged
+        self.assertIn("BAND_PCT_CONTRADICTION", r35.flags)
+        self.assertTrue(any("would be off at 20.0%/30.0%" in n for n in r35.notes))
+
+
+class TestP19MultiTimescale(unittest.TestCase):
+    def test_fast_plus_slow_flagged(self):
+        s = [[t, round(0.5 * math.exp(-2 * t) + 0.2 * math.exp(-0.02 * t), 4)] for t in (0, 1, 2, 4, 8, 24, 48)]
+        r = pif36.score(FULL, 2.0, True, True, True, s)
+        self.assertIn("RESIDUE_MULTI_TIMESCALE", r.flags)
+
+    def test_clean_single_decay_not_flagged(self):
+        for row in ROWS:
+            with self.subTest(row=row["id"]):
+                self.assertNotIn("RESIDUE_MULTI_TIMESCALE", pif36.score_row(row).flags)
+
+
+class TestP20RowRoles(unittest.TestCase):
+    def test_every_row_has_a_valid_role(self):
+        for row in ROWS:
+            with self.subTest(row=row["id"]):
+                self.assertIn(row.get("row_role"), pif36.ROW_ROLES)
+                self.assertEqual(pif36.score_row(row).row_role, row["row_role"])
+        legacy = {r["id"] for r in ROWS if r["row_role"] == "legacy_comparison"}
+        self.assertEqual(legacy, {r["id"] for r in ROWS if r["intended_band"] == "legacy/unmeasured"})
+
+    def test_bad_role_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score_row({**ROWS[0], "row_role": "vibes"})
+
+
+class TestP21HalfLife(unittest.TestCase):
+    def test_half_life_note_and_short_flag(self):
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD)        # lambda 0.6/h -> 1.155 h
+        self.assertTrue(any("half-life" in n and "secondary" in n for n in r.notes))
+        self.assertNotIn("HALF_LIFE_SHORT", r.flags)
+        fast = pif35.residue_series_from_curve(0.8, 1.5, (0, 0.25, 0.5, 1, 2, 4))
+        r = pif36.score(FULL, 2.0, True, True, True, fast)
+        self.assertIn("HALF_LIFE_SHORT", r.flags)
+        self.assertEqual(r.band, "PATIENT")                          # flag only; Delta_0 alone gates
+
+
+class TestP11EvidenceClass(unittest.TestCase):
+    def test_every_row_has_valid_evidence_class(self):
+        for row in ROWS:
+            with self.subTest(row=row["id"]):
+                ev = row["evidence_class"]
+                for k in pif36.EVIDENCE_KEYS:
+                    self.assertIn(ev[k], pif36.EVIDENCE_CLASSES)
+                self.assertEqual(pif36.score_row(row).evidence_class, ev)
+
+    def test_human_and_ai_rows_held_to_same_key(self):
+        by_id = {r["id"]: r for r in ROWS}
+        human, ai = by_id["readme_healthy_human"], by_id["readme_grok_baseline"]
+        self.assertEqual(human["evidence_class"]["cost_ratio"], "assumed")
+        self.assertEqual(human["evidence_class"]["residue"], ai["evidence_class"]["residue"])
+        self.assertNotIn("measured", {r["evidence_class"]["overall"] for r in ROWS})
+
+    def test_bad_or_inconsistent_class_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score_row({**ROWS[0], "evidence_class": {"bricks": "vibes"}})
+        with self.assertRaises(ValueError):
+            pif36.score_row({**ROWS[5], "evidence_class": {**ROWS[5]["evidence_class"], "overall": "measured"}})
+
+    def test_species_results_shows_evidence_column(self):
+        with open(os.path.join(ROOT, "species_results_v35.md"), encoding="utf-8") as f:
+            md = f.read()
+        self.assertIn("Evidence (bricks/cost/continuity/residue)", md)
+        self.assertIn("| real world anchor | assumed (A/A/A/A) |", md)
+
+
+class TestP16NoBodyDisplay(unittest.TestCase):
+    def test_no_body_coin_shows_na_number_unchanged(self):
+        row = next(r for r in ROWS if r["id"] == "v21_interrupt_messy_no_body")
+        r36, r35 = pif36.score_row(row), pif35.score_row(row)
+        self.assertEqual(r36.band, "COIN")
+        self.assertEqual(r36.pct_35_display, "n/a (no-body COIN)")
+        self.assertEqual(r36.pct_35, r35.pct_35)
+
+    def test_other_rows_show_number(self):
+        row = next(r for r in ROWS if r["id"] == "grok_dog")
+        self.assertEqual(pif36.score_row(row).pct_35_display, "39.81%")
+
+
+class TestP22InputBinding(unittest.TestCase):
+    ROW = next(r for r in ROWS if r["id"] == "grok_dog")
+
+    def test_no_metadata_no_flag(self):
+        self.assertNotIn("INPUTS_NOT_BOUND", pif36.score_row(self.ROW).flags_36)
+
+    def test_same_system_same_window_no_flag(self):
+        mo = {k: {"system": "rex", "version": "1", "date": "2026-10-01"} for k in ("bricks", "cost_ratio", "residue")}
+        mo["residue"]["date"] = "2026-10-20"
+        self.assertNotIn("INPUTS_NOT_BOUND", pif36.score_row({**self.ROW, "measured_on": mo}).flags_36)
+
+    def test_mixed_version_flagged_band_unchanged(self):
+        mo = {"bricks": {"system": "bot", "version": "4.1"}, "residue": {"system": "bot", "version": "4.2"}}
+        r = pif36.score_row({**self.ROW, "measured_on": mo})
+        self.assertIn("INPUTS_NOT_BOUND", r.flags_36)
+        self.assertEqual(r.band, pif35.score_row(self.ROW).band)
+
+    def test_mixed_system_and_wide_dates_flagged(self):
+        mo = {"bricks": {"system": "a", "date": "2026-01-01"}, "cost_ratio": {"system": "b", "date": "2026-06-01"}}
+        r = pif36.score_row({**self.ROW, "measured_on": mo})
+        self.assertIn("INPUTS_NOT_BOUND", r.flags)
+        self.assertTrue(any("different systems" in n and "days apart" in n for n in r.notes))
+
+    def test_bad_key_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score_row({**self.ROW, "measured_on": {"vibes": {"system": "a"}}})
+
+
+class TestP23NoiseFloor(unittest.TestCase):
+    ROW = next(r for r in ROWS if r["id"] == "grok_dog")
+
+    def test_no_noise_floor_no_flag(self):
+        self.assertNotIn("RESIDUE_BELOW_NOISE", pif36.score_row(self.ROW).flags_36)
+
+    def test_clear_of_noise_no_flag(self):
+        r = pif36.score_row({**self.ROW, "residue_noise_floor": 0.05})
+        self.assertNotIn("RESIDUE_BELOW_NOISE", r.flags_36)
+        self.assertTrue(any("clears" in n for n in r.notes))
+
+    def test_below_noise_flagged_band_unchanged(self):
+        r = pif36.score_row({**self.ROW, "residue_noise_floor": 0.3})
+        self.assertIn("RESIDUE_BELOW_NOISE", r.flags_36)
+        self.assertIn("RESIDUE_BELOW_NOISE", r.flags)
+        self.assertEqual(r.band, pif35.score_row(self.ROW).band)
+
+    def test_no_residue_fit_no_flag(self):
+        row = next(x for x in ROWS if not x.get("residue_series"))
+        self.assertNotIn("RESIDUE_BELOW_NOISE", pif36.score_row({**row, "residue_noise_floor": 0.9}).flags_36)
+
+    def test_bad_value_rejected(self):
+        for bad in (-0.1, 1.5, float("nan"), "0.1", True):
+            with self.assertRaises(ValueError):
+                pif36.score_row({**self.ROW, "residue_noise_floor": bad})
+
+
+class TestP24DistinctTimes(unittest.TestCase):
+    PADDED = [[0, 0.70], [0, 0.70], [0, 0.70], [10, 0.30]]   # 4 samples, 2 distinct times
+
+    def test_padded_series_flagged(self):
+        d = pif36.fit_residue(self.PADDED)
+        self.assertEqual(d["status"], "VALID")
+        self.assertEqual(d["r_squared"], 1.0)
+        self.assertEqual(d["distinct_times"], 2)
+        self.assertIn("RESIDUE_FEW_TIMES", d["quality_flags"])
+
+    def test_three_distinct_times_not_flagged(self):
+        d = pif36.fit_residue([[0, 0.70], [5, 0.45], [10, 0.30]])
+        self.assertNotIn("RESIDUE_FEW_TIMES", d["quality_flags"])
+
+    def test_padded_series_blocks_patient(self):
+        patient = [x for x in ROWS if pif36.score_row(x).band == "PATIENT"]
+        self.assertTrue(patient)
+        r = pif36.score_row({**patient[0], "residue_series": self.PADDED, "residue_context": "interrupt"})
+        self.assertIn("RESIDUE_FEW_TIMES", r.flags_36)
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_FEW_TIMES", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP25AboveObserved(unittest.TestCase):
+    # every reading <= 0.55, first sample inside one half-life, good fit -> Delta_0 projected to 1.0
+    LATE_START = [[0.9, 0.55], [1.8, 0.275], [2.7, 0.1375]]
+
+    def test_projected_delta0_flagged(self):
+        d = pif36.fit_residue(self.LATE_START)
+        self.assertEqual(d["status"], "VALID")
+        self.assertGreaterEqual(d["delta_0"], 0.65)
+        self.assertGreaterEqual(d["r_squared"], pif36.FIT_R2_MIN)
+        self.assertNotIn("RESIDUE_EXTRAPOLATED", d["quality_flags"])   # P8 alone misses it
+        self.assertIn("RESIDUE_ABOVE_OBSERVED", d["quality_flags"])
+        self.assertEqual(d["max_observed"], 0.55)
+
+    def test_observed_start_not_flagged(self):
+        d = pif36.fit_residue([[0, 0.70], [5, 0.45], [10, 0.30]])
+        self.assertNotIn("RESIDUE_ABOVE_OBSERVED", d["quality_flags"])
+
+    def test_projected_delta0_blocks_patient(self):
+        patient = [x for x in ROWS if pif36.score_row(x).band == "PATIENT"]
+        self.assertTrue(patient)
+        r = pif36.score_row({**patient[0], "residue_series": self.LATE_START, "residue_context": "interrupt"})
+        self.assertIn("RESIDUE_ABOVE_OBSERVED", r.flags_36)
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_ABOVE_OBSERVED", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP27ClusteredTimes(unittest.TestCase):
+    CLUSTERED = [[0, 0.80], [0.05, 0.79], [0.1, 0.78], [0.15, 0.77], [0.2, 0.76], [10, 0.10]]
+
+    def test_clustered_series_flagged(self):
+        d = pif36.fit_residue(self.CLUSTERED)
+        self.assertEqual(d["status"], "VALID")
+        self.assertGreater(d["r_squared"], 0.99)
+        self.assertEqual(d["distinct_times"], 6)
+        self.assertEqual(d["effective_times"], 2)
+        self.assertIn("RESIDUE_CLUSTERED_TIMES", d["quality_flags"])
+        self.assertNotIn("RESIDUE_FEW_TIMES", d["quality_flags"])
+
+    def test_spread_series_not_flagged(self):
+        d = pif36.fit_residue([[0, 0.70], [5, 0.45], [10, 0.30]])
+        self.assertEqual(d["effective_times"], 3)
+        self.assertNotIn("RESIDUE_CLUSTERED_TIMES", d["quality_flags"])
+
+    def test_padded_series_gets_p24_not_p27(self):
+        q = pif36.fit_residue(TestP24DistinctTimes.PADDED)["quality_flags"]
+        self.assertIn("RESIDUE_FEW_TIMES", q)
+        self.assertNotIn("RESIDUE_CLUSTERED_TIMES", q)
+
+    def test_clustered_series_blocks_patient(self):
+        patient = [x for x in ROWS if pif36.score_row(x).band == "PATIENT"]
+        self.assertTrue(patient)
+        r = pif36.score_row({**patient[0], "residue_series": self.CLUSTERED, "residue_context": "interrupt"})
+        self.assertIn("RESIDUE_CLUSTERED_TIMES", r.flags_36)
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_CLUSTERED_TIMES", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP26DelayedOnset(unittest.TestCase):
+    ONSET = [[0, 0.1], [0.5, 0.8], [1, 0.75], [2, 0.68], [4, 0.55], [8, 0.36], [16, 0.16]]
+    RISING = [[0, 0.3], [5, 0.5], [10, 0.7], [15, 0.8]]
+
+    def test_delayed_peak_flagged(self):
+        d = pif36.fit_residue(self.ONSET)
+        self.assertIn("RESIDUE_DELAYED_PEAK", d["info_flags"])
+        self.assertEqual(d["peak_observed"], [0.5, 0.8])
+        self.assertTrue(any("understates" in n for n in d["notes"]))
+        self.assertNotIn("RESIDUE_RISING", d["info_flags"])
+
+    def test_rising_flagged_and_frozen_explained(self):
+        d = pif36.fit_residue(self.RISING)
+        self.assertEqual(d["status"], "FROZEN")
+        self.assertIn("RESIDUE_RISING", d["info_flags"])
+        self.assertTrue(any("not proof of scripting" in n for n in d["notes"]))
+
+    def test_plain_decay_not_flagged(self):
+        d = pif36.fit_residue([[0, 0.70], [5, 0.45], [10, 0.30]])
+        self.assertNotIn("RESIDUE_DELAYED_PEAK", d["info_flags"])
+        self.assertNotIn("RESIDUE_RISING", d["info_flags"])
+
+    def test_flags_are_info_only(self):
+        for series in (self.ONSET, self.RISING):
+            q = pif36.fit_residue(series)["quality_flags"]
+            self.assertNotIn("RESIDUE_DELAYED_PEAK", q)
+            self.assertNotIn("RESIDUE_RISING", q)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            self.assertNotIn("RESIDUE_DELAYED_PEAK", f, row["id"])
+            self.assertNotIn("RESIDUE_RISING", f, row["id"])
+
+
+class TestP28RunSelection(unittest.TestCase):
+    ROW = next(r for r in ROWS if r["id"] == "grok_dog")
+
+    def test_no_log_no_flag(self):
+        self.assertNotIn("RUNS_SELECTED", pif36.score_row(self.ROW).flags_36)
+
+    def test_single_run_no_flag(self):
+        r = pif36.score_row({**self.ROW, "trial_log": {"residue_runs": 1, "cost_runs": 1}})
+        self.assertNotIn("RUNS_SELECTED", r.flags_36)
+
+    def test_best_of_many_flagged_band_unchanged(self):
+        r = pif36.score_row({**self.ROW, "trial_log": {"residue_runs": 5, "reported": "best"}})
+        self.assertIn("RUNS_SELECTED", r.flags_36)
+        self.assertIn("RUNS_SELECTED", r.flags)
+        self.assertEqual(r.band, pif35.score_row(self.ROW).band)
+        self.assertTrue(any("5 residue runs" in n for n in r.notes))
+
+    def test_unstated_choice_flagged(self):
+        r = pif36.score_row({**self.ROW, "trial_log": {"cost_runs": 3}})
+        self.assertIn("RUNS_SELECTED", r.flags_36)
+
+    def test_honest_reporting_not_flagged(self):
+        for how in pif36.TRIAL_HONEST_REPORTING:
+            r = pif36.score_row({**self.ROW, "trial_log": {"residue_runs": 4, "cost_runs": 4, "reported": how}})
+            self.assertNotIn("RUNS_SELECTED", r.flags_36, how)
+            self.assertTrue(any("not a best-of-N pick" in n for n in r.notes))
+
+    def test_bad_values_rejected(self):
+        for bad in ({"residue_runs": 0}, {"residue_runs": 2.5}, {"residue_runs": True},
+                    {"reported": "luckiest", "residue_runs": 2}, {"vibes": 1}, [3]):
+            with self.assertRaises(ValueError):
+                pif36.score_row({**self.ROW, "trial_log": bad})
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RUNS_SELECTED", pif36.score_row(row).flags_36, row["id"])
+
+
+
+class TestP29TimeUnitClock(unittest.TestCase):
+    """P29: bare residue times are treated as hours; unit/clock can expose relabeling."""
+
+    ROW = next(r for r in ROWS if r["id"] == "grok_dog")
+    # Instant physical reset (half-life 30 min) honestly reported in hours -> INSTANT-ish short hl
+    HONEST_MINUTES_AS_HOURS = [[0, 0.8], [0.25, 0.566], [0.5, 0.4], [1.0, 0.2], [2.0, 0.05]]
+    # Same readings with times multiplied by 60 (minutes mislabeled as hours)
+    FAKED_MINUTES_AS_HOURS = [[0, 0.8], [15, 0.566], [30, 0.4], [60, 0.2], [120, 0.05]]
+
+    def test_no_unit_no_flag(self):
+        self.assertNotIn("RESIDUE_NON_WALL_CLOCK", pif36.score_row(self.ROW).flags_36)
+        self.assertNotIn("RESIDUE_CLOCK_MISMATCH", pif36.score_row(self.ROW).flags_36)
+
+    def test_hours_unit_no_flag(self):
+        r = pif36.score_row({**self.ROW, "residue_time_unit": "hours"})
+        self.assertNotIn("RESIDUE_NON_WALL_CLOCK", r.flags_36)
+        self.assertEqual(r.band, pif35.score_row(self.ROW).band)
+
+    def test_minutes_converted_matches_honest_hours(self):
+        # Report the faked minute-scale numbers but declare unit=minutes -> convert back
+        r_min = pif36.score(FULL, 2.0, True, True, True, self.FAKED_MINUTES_AS_HOURS,
+                            residue_time_unit="minutes")
+        r_h = pif36.score(FULL, 2.0, True, True, True, self.HONEST_MINUTES_AS_HOURS,
+                          residue_time_unit="hours")
+        self.assertEqual(r_min.residue["status"], r_h.residue["status"])
+        self.assertAlmostEqual(r_min.residue["half_life_hours"], r_h.residue["half_life_hours"], places=2)
+        self.assertTrue(any("converted from minutes" in n for n in r_min.notes))
+
+    def test_turns_blocks_patient(self):
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_time_unit="turns")
+        self.assertIn("RESIDUE_NON_WALL_CLOCK", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_sessions_and_tokens_block_patient(self):
+        for unit in ("sessions", "tokens"):
+            r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_time_unit=unit)
+            self.assertIn("RESIDUE_NON_WALL_CLOCK", r.flags_36, unit)
+            self.assertEqual(r.band, "COIN", unit)
+
+    def test_clock_mismatch_blocks_patient(self):
+        # Claim multi-hour gaps, but UTC clock spans only ~1 hour
+        series = [[0, 0.80], [5, 0.55], [10, 0.38], [20, 0.18]]
+        clock = [
+            "2026-11-05T12:00:00Z",
+            "2026-11-05T12:15:00Z",
+            "2026-11-05T12:30:00Z",
+            "2026-11-05T13:00:00Z",
+        ]
+        r = pif36.score(FULL, 2.0, True, True, True, series, residue_time_unit="hours",
+                        residue_clock=clock)
+        self.assertIn("RESIDUE_CLOCK_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+
+    def test_matching_clock_ok(self):
+        series = [[0, 0.80], [1, 0.55], [2, 0.38], [4, 0.18]]
+        clock = [
+            "2026-11-05T12:00:00Z",
+            "2026-11-05T13:00:00Z",
+            "2026-11-05T14:00:00Z",
+            "2026-11-05T16:00:00Z",
+        ]
+        r = pif36.score(FULL, 2.0, True, True, True, series, residue_time_unit="hours",
+                        residue_clock=clock)
+        self.assertNotIn("RESIDUE_CLOCK_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertTrue(any("corroborates" in n for n in r.notes))
+
+    def test_faked_minutes_as_hours_looks_valid_without_clock(self):
+        # Without a clock, mislabeled minutes pass as a long VALID decay (the loophole).
+        d = pif36.fit_residue(self.FAKED_MINUTES_AS_HOURS)
+        self.assertEqual(d["status"], "VALID")
+        self.assertGreater(d["half_life_hours"], 10)
+
+    def test_bad_values_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD, residue_time_unit="fortnights")
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD, residue_clock=["not-a-time"])
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD,
+                        residue_clock=["2026-11-05T12:00:00"])  # no tz
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD,
+                        residue_clock=["2026-11-05T12:00:00Z", "2026-11-05T13:00:00Z"])
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            self.assertNotIn("RESIDUE_NON_WALL_CLOCK", f, row["id"])
+            self.assertNotIn("RESIDUE_CLOCK_MISMATCH", f, row["id"])
+
+
+
+class TestP30Rule4Observed(unittest.TestCase):
+    """P30: Rule 4 detectable-at-48h must be observed, not only fitted."""
+
+    def test_observed_below_detect_blocks_patient(self):
+        # Fitted residue at 48 h clears the detect floor; the reading taken there does not.
+        series = [[0, 0.80], [24, 0.55], [48, 0.04]]
+        d = pif36.fit_residue(series, "post_loss")
+        self.assertIn("RULE4_UNOBSERVED", d["quality_flags"])
+        self.assertFalse(d["rule4_pass"])
+        self.assertEqual(d["rule4_observed_max"], 0.04)
+        r = pif36.score(FULL, 2.0, True, True, True, series, residue_context="post_loss")
+        self.assertIn("RULE4_UNOBSERVED", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+        # 3.5 still passes Rule 4 on the fit alone and can reach PATIENT
+        r35 = pif35.score(FULL, 2.0, True, True, True, series, residue_context="post_loss")
+        self.assertTrue(r35.residue["rule4_pass"])
+        self.assertEqual(r35.band, "PATIENT")
+
+    def test_no_sample_near_48h_blocks_patient(self):
+        series = [[0, 0.85], [96, 0.42], [192, 0.21]]
+        d = pif36.fit_residue(series, "post_loss")
+        self.assertIn("RULE4_UNOBSERVED", d["quality_flags"])
+        self.assertIsNone(d["rule4_observed_max"])
+        self.assertEqual(d["rule4_near_samples"], 0)
+        self.assertFalse(d["rule4_pass"])
+        r = pif36.score(FULL, 2.0, True, True, True, series, residue_context="post_loss")
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("RULE4_UNOBSERVED", r.flags_36)
+
+    def test_real_reading_near_48h_ok(self):
+        # Dog post-loss series has 0.0771 at 48 h (above detect 0.05)
+        row = next(r for r in ROWS if r["id"] == "grok_dog_postloss")
+        d = pif36.fit_residue(row["residue_series"], "post_loss")
+        self.assertNotIn("RULE4_UNOBSERVED", d["quality_flags"])
+        self.assertTrue(d["rule4_pass"])
+        self.assertGreaterEqual(d["rule4_observed_max"], pif35.RULE4_DETECT_LEVEL)
+        r = pif36.score_row(row)
+        self.assertNotIn("RULE4_UNOBSERVED", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_interrupt_context_unaffected(self):
+        # P30 is post-loss only; a clean interrupt PATIENT series stays PATIENT
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_context="interrupt")
+        self.assertEqual(r.band, "PATIENT")
+        self.assertNotIn("RULE4_UNOBSERVED", r.flags_36)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RULE4_UNOBSERVED", pif36.score_row(row).flags_36, row["id"])
+
+
+
+class TestP34Rule4Noise(unittest.TestCase):
+    """P34: Rule 4's observed 48 h mark should clear the row's own noise floor (flag only)."""
+    ROW = next(r for r in ROWS if r["id"] == "grok_dog_postloss")
+
+    def test_within_noise_flagged_band_unchanged(self):
+        # 48 h reading 0.0771 clears 0.05 but not 3 x 0.03 = 0.09; Delta_0 0.85 clears P23.
+        r = pif36.score_row({**self.ROW, "residue_noise_floor": 0.03})
+        self.assertIn("RULE4_WITHIN_NOISE", r.flags_36)
+        self.assertIn("RULE4_WITHIN_NOISE", r.flags)
+        self.assertNotIn("RESIDUE_BELOW_NOISE", r.flags_36)
+        self.assertEqual(r.band, pif36.score_row(self.ROW).band)
+
+    def test_clear_of_noise_no_flag(self):
+        r = pif36.score_row({**self.ROW, "residue_noise_floor": 0.01})
+        self.assertNotIn("RULE4_WITHIN_NOISE", r.flags_36)
+        self.assertTrue(any("3.6 P34" in n and "clears" in n for n in r.notes))
+
+    def test_no_noise_floor_no_flag(self):
+        self.assertNotIn("RULE4_WITHIN_NOISE", pif36.score_row(self.ROW).flags_36)
+
+    def test_interrupt_rows_unaffected(self):
+        row = next(r for r in ROWS if r["id"] == "grok_dog")
+        r = pif36.score_row({**row, "residue_noise_floor": 0.2})
+        self.assertNotIn("RULE4_WITHIN_NOISE", r.flags_36)
+
+    def test_rule4_already_failed_not_double_flagged(self):
+        d = pif36.fit_residue([[0, 0.80], [24, 0.55], [48, 0.04]], "post_loss")
+        self.assertEqual(pif36.check_rule4_noise(d, 0.03), ([], []))
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RULE4_WITHIN_NOISE", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP31ControlRun(unittest.TestCase):
+    """P31: residue shared with a matched no-interrupt control run is not interrupt residue."""
+    TIMES = [t for t, _ in GOOD]
+
+    def test_shared_drift_blocks_patient(self):
+        ctrl = [[t, round(0.75 * math.exp(-0.6 * t), 4)] for t in self.TIMES]
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, GOOD).band, "PATIENT")
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=ctrl)
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("RESIDUE_CONTROL_SHARED", r.flags_36)
+        self.assertLess(r.residue["control_excess_delta_0"], 0.65)
+        # 3.5 has no control input and stays as it was
+        self.assertEqual(pif35.score(FULL, 2.0, True, True, True, GOOD).band, "PATIENT")
+
+    def test_flat_control_keeps_patient(self):
+        ctrl = [[t, 0.02] for t in self.TIMES]
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=ctrl)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertNotIn("RESIDUE_CONTROL_SHARED", r.flags_36)
+        self.assertTrue(any("P31" in n and "within" in n for n in r.notes))
+
+    def test_control_equal_to_series_no_valid_excess(self):
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=GOOD)
+        self.assertIn("RESIDUE_CONTROL_SHARED", r.flags_36)
+        self.assertIsNone(r.residue["control_excess_delta_0"])
+        self.assertEqual(r.band, "COIN")
+
+    def test_no_costable_self_coin_needs_clean_control(self):
+        r = pif36.score(FULL, 2.0, True, False, True, GOOD, residue_control_series=GOOD)
+        self.assertEqual(r.band, "EMPTY")
+
+    def test_mismatched_control_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=[[0, 0.0], [1, 0.0]])
+        bad = [[t + 0.5, 0.0] for t in self.TIMES]
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=bad)
+        with self.assertRaises(ValueError):
+            pif36.score(FULL, 2.0, True, True, True, None, residue_control_series=[[0, 0.0]])
+
+    def test_minutes_unit_converts_control_too(self):
+        series = [[t * 60, y] for t, y in GOOD]
+        ctrl = [[t * 60, 0.0] for t in self.TIMES]
+        r = pif36.score(FULL, 2.0, True, True, True, series, residue_time_unit="minutes",
+                        residue_control_series=ctrl)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_score_row_passes_control(self):
+        row = next(r for r in ROWS if pif36.score_row(r).band == "PATIENT" and r.get("residue_series"))
+        row = dict(row, residue_control_series=row["residue_series"])
+        r = pif36.score_row(row)
+        self.assertIn("RESIDUE_CONTROL_SHARED", r.flags_36)
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_CONTROL_SHARED", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP36FlatControl(unittest.TestCase):
+    """P36: a control that reads the exact same value at every time is typed in, not measured."""
+    TIMES = TestP31ControlRun.TIMES
+
+    def test_all_zero_control_flagged_band_unchanged(self):
+        ctrl = [[t, 0.0] for t in self.TIMES]
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=ctrl)
+        self.assertIn("RESIDUE_CONTROL_FLAT", r.flags_36)
+        self.assertNotIn("RESIDUE_CONTROL_SHARED", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertTrue(any("P36" in n for n in r.notes))
+
+    def test_constant_nonzero_control_flagged(self):
+        ctrl = [[t, 0.02] for t in self.TIMES]
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=ctrl)
+        self.assertIn("RESIDUE_CONTROL_FLAT", r.flags_36)
+
+    def test_noisy_control_not_flagged(self):
+        ctrl = [[t, 0.02 + (0.01 if i % 2 else -0.01)] for i, t in enumerate(self.TIMES)]
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_control_series=ctrl)
+        self.assertNotIn("RESIDUE_CONTROL_FLAT", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_no_control_not_flagged(self):
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD)
+        self.assertNotIn("RESIDUE_CONTROL_FLAT", r.flags_36)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_CONTROL_FLAT", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP32ResidueEvent(unittest.TestCase):
+    """P32: residue_context is a self-declared label; residue_event ties it (and t = 0) to an event."""
+    SLOW_TIMES = (0, 6, 12, 24, 36, 48, 60, 72)
+    SLOW = [[t, round(0.8 * math.exp(-5e-4 * t), 4)] for t in SLOW_TIMES]   # scripted-looking, ~58-day half-life
+    FAST = pif35.residue_series_from_curve(0.8, 0.5, (0, 1, 2, 4, 8))        # gone well before 48 h
+    LOSS = {"kind": "loss", "description": "care target removed"}
+    INTR = {"kind": "interrupt", "description": "mid-task context wipe"}
+
+    def test_label_is_a_lever_both_ways(self):
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, self.SLOW, "interrupt").band, "COIN")
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, self.SLOW, "post_loss").band, "PATIENT")
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, self.FAST, "interrupt").band, "PATIENT")
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, self.FAST, "post_loss").band, "COIN")
+
+    def test_undocumented_p9_rescue_is_flagged_not_blocked(self):
+        r = pif36.score(FULL, 2.0, True, True, True, self.SLOW, "post_loss")
+        self.assertIn("POST_LOSS_UNDOCUMENTED", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+        r = pif36.score(FULL, 2.0, True, True, True, self.SLOW, "post_loss", residue_event=self.LOSS)
+        self.assertNotIn("POST_LOSS_UNDOCUMENTED", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_loss_event_labeled_interrupt_blocks_patient(self):
+        r = pif36.score(FULL, 2.0, True, True, True, self.FAST, "interrupt", residue_event=self.LOSS)
+        self.assertIn("RESIDUE_CONTEXT_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+        r = pif36.score(FULL, 2.0, True, True, True, self.SLOW, "post_loss", residue_event=self.INTR)
+        self.assertIn("RESIDUE_CONTEXT_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+
+    def test_matching_event_changes_nothing(self):
+        a = pif36.score(FULL, 2.0, True, True, True, GOOD)
+        b = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_event=self.INTR)
+        self.assertEqual((a.band, a.flags), (b.band, b.flags))
+
+    def test_event_clock_sets_t0(self):
+        times = (0, 1, 2, 4, 8, 24)
+        clock = [f"2026-11-01T{10 + t:02d}:00:00Z" if t < 14 else "2026-11-02T10:00:00Z" for t in times]
+        ok = dict(self.INTR, at_utc="2026-11-01T10:00:00Z")
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_clock=clock, residue_event=ok)
+        self.assertNotIn("RESIDUE_EVENT_CLOCK_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+        # event really happened 5 h before the first reading, but that reading is claimed as t = 0
+        late = dict(self.INTR, at_utc="2026-11-01T05:00:00Z")
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_clock=clock, residue_event=late)
+        self.assertIn("RESIDUE_EVENT_CLOCK_MISMATCH", r.flags_36)
+        self.assertEqual(r.band, "COIN")
+        # first reading taken before the event
+        early = dict(self.INTR, at_utc="2026-11-01T11:00:00Z")
+        r = pif36.score(FULL, 2.0, True, True, True, GOOD, residue_clock=clock, residue_event=early)
+        self.assertIn("RESIDUE_EVENT_CLOCK_MISMATCH", r.flags_36)
+
+    def test_no_body_coin_needs_matching_event(self):
+        r = pif36.score(FULL, 1.0, True, False, True, GOOD, residue_event=self.LOSS)
+        self.assertEqual(r.band, "EMPTY")
+        self.assertEqual(pif36.score(FULL, 1.0, True, False, True, GOOD, residue_event=self.INTR).band, "COIN")
+
+    def test_malformed_event_rejected(self):
+        for bad in ("loss", {"kind": "grief", "description": "x"}, {"kind": "loss"},
+                    {"kind": "loss", "description": "  "},
+                    {"kind": "loss", "description": "x", "at_utc": "yesterday"},
+                    {"kind": "loss", "description": "x", "at_utc": "2026-11-01T10:00:00"}):
+            with self.assertRaises(ValueError):
+                pif36.score(FULL, 2.0, True, True, True, GOOD, residue_event=bad)
+
+    def test_score_row_passes_event(self):
+        row = next(r for r in ROWS if pif36.score_row(r).band == "PATIENT"
+                   and r.get("residue_context", "interrupt") == "interrupt")
+        r = pif36.score_row(dict(row, residue_event=self.LOSS))
+        self.assertIn("RESIDUE_CONTEXT_MISMATCH", r.flags_36)
+        self.assertNotEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            for flag in ("RESIDUE_CONTEXT_MISMATCH", "RESIDUE_EVENT_CLOCK_MISMATCH", "POST_LOSS_UNDOCUMENTED"):
+                self.assertNotIn(flag, f, row["id"])
+
+
+class TestP33TailPaddedFit(unittest.TestCase):
+    ZIGZAG = [(0, 0.9), (1, 0.55), (2, 0.85), (3, 0.5), (4, 0.8), (5, 0.45)]
+    PADDED = ZIGZAG + [(24, 0.0), (32, 0.0), (40, 0.0)]
+
+    def test_zigzag_alone_fails_p7(self):
+        f = pif36.fit_residue(self.ZIGZAG)
+        self.assertIn("RESIDUE_POOR_FIT", f["quality_flags"])
+
+    def test_tail_zeros_no_longer_rescue_the_fit(self):
+        f = pif36.fit_residue(self.PADDED)
+        self.assertGreaterEqual(f["r_squared"], pif36.FIT_R2_MIN)       # overall R^2 looks fine
+        self.assertLess(f["r_squared_decay_window"], pif36.FIT_R2_MIN)  # decay window does not
+        self.assertIn("RESIDUE_TAIL_PADDED_FIT", f["quality_flags"])
+        self.assertEqual(pif35.score([0.8] * 20, 1.7, True, True, True, self.PADDED).band, "PATIENT")
+        r = pif36.score([0.8] * 20, 1.7, True, True, True, self.PADDED)
+        self.assertEqual(r.band, "COIN")
+        self.assertTrue(any("RESIDUE_TAIL_PADDED_FIT" in b for b in r.band_reasons))
+
+    def test_clean_decay_with_tail_not_flagged(self):
+        s = pif35.residue_series_from_curve(0.8, 0.6) + [(48.0, 0.0), (72.0, 0.0)]
+        f = pif36.fit_residue(s)
+        self.assertNotIn("RESIDUE_TAIL_PADDED_FIT", f["quality_flags"])
+        self.assertEqual(pif36.score(FULL, 2.0, True, True, True, s).band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_TAIL_PADDED_FIT", pif36.score_row(row).flags_36, row["id"])
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestP35UnprobedNoBodyCoin(unittest.TestCase):
+    def _row(self, **kw):
+        import json
+        rows = _load_table()
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        r = dict([x for x in rows if x["id"] == "v21_interrupt_messy_no_body"][0])
+        r.update(kw)
+        return r
+
+    def test_self_report_no_body_coin_flagged(self):
+        for p in ("announced", "self_report"):
+            r = pif36.score_row(self._row(residue_probe=p))
+            self.assertEqual(r.band, "COIN")
+            self.assertIn("RESIDUE_UNPROBED_NO_BODY_COIN", r.flags)
+
+    def test_blind_or_unstated_not_flagged(self):
+        for p in (None, "blind"):
+            r = pif36.score_row(self._row(residue_probe=p))
+            self.assertEqual(r.band, "COIN")
+            self.assertNotIn("RESIDUE_UNPROBED_NO_BODY_COIN", r.flags)
+
+    def test_without_interrupt_evidence_stays_empty_unflagged(self):
+        r = pif36.score_row(self._row(residue_probe="self_report", interrupt_evidence=False))
+        self.assertEqual(r.band, "EMPTY")
+        self.assertNotIn("RESIDUE_UNPROBED_NO_BODY_COIN", r.flags)
+
+
+class TestP37ResidueAbsentCoin(unittest.TestCase):
+    def _row(self, series):
+        import json
+        rows = _load_table()
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        r = dict([x for x in rows if x["id"] == "grok_octopus"][0])
+        r["residue_series"] = series
+        return r
+
+    def test_measured_clean_reset_flagged(self):
+        r = pif36.score_row(self._row([[t, 0.01] for t in (0, 1, 2, 4, 8, 16)]))
+        self.assertEqual(r.band, "COIN")
+        self.assertEqual(r.residue["status"], "NONE")
+        self.assertIn("RESIDUE_ABSENT_COIN", r.flags_36)
+
+    def test_instant_reset_flagged(self):
+        r = pif36.score_row(self._row([[0, 0.9], [1, 0.0], [2, 0.0], [4, 0.0]]))
+        self.assertEqual(r.band, "COIN")
+        self.assertEqual(r.residue["status"], "INSTANT")
+        self.assertIn("RESIDUE_ABSENT_COIN", r.flags_36)
+
+    def test_unknown_and_valid_not_flagged(self):
+        self.assertNotIn("RESIDUE_ABSENT_COIN", pif36.score_row(self._row(None)).flags_36)
+        r = pif36.score_row(self._row([[0.0, 0.55], [1.0, 0.2471], [2.0, 0.111], [4.0, 0.0224]]))
+        self.assertNotIn("RESIDUE_ABSENT_COIN", r.flags_36)
+
+    def test_no_table_row_flagged(self):
+        import json
+        rows = _load_table()
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        for row in rows:
+            self.assertNotIn("RESIDUE_ABSENT_COIN", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP38PatientCrucibleGap(unittest.TestCase):
+    def _row(self, crucible):
+        import json
+        rows = _load_table()
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        r = dict([x for x in rows if x["id"] == "grok_dog"][0])
+        r["crucible"] = crucible
+        return r
+
+    def test_zero_minimal_self_still_patient_but_flagged(self):
+        r = pif36.score_row(self._row([1.0, 0.0, 1.0, 1.0, 1.0]))
+        self.assertEqual(r.band, "PATIENT")
+        self.assertIn("PATIENT_CRUCIBLE_GAP", r.flags_36)
+
+    def test_two_zero_bricks_flagged(self):
+        r = pif36.score_row(self._row([1.0, 1.0, 1.0, 0.0, 0.0]))
+        self.assertEqual(r.band, "PATIENT")
+        self.assertIn("PATIENT_CRUCIBLE_GAP", r.flags_36)
+
+    def test_brick_at_floor_not_flagged(self):
+        r = pif36.score_row(self._row([1.0, 0.85, pif36.CRUCIBLE_BRICK_FLOOR, 1.0, 0.85]))
+        self.assertNotIn("PATIENT_CRUCIBLE_GAP", r.flags_36)
+
+    def test_coin_with_gap_not_flagged(self):
+        import json
+        rows = _load_table()
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        r = pif36.score_row([x for x in rows if x["id"] == "git_v2_overheating_grok_vector"][0])
+        self.assertEqual(r.band, "COIN")
+        self.assertNotIn("PATIENT_CRUCIBLE_GAP", r.flags_36)
+
+    def test_no_table_row_flagged(self):
+        import json
+        rows = _load_table()
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        for row in rows:
+            self.assertNotIn("PATIENT_CRUCIBLE_GAP", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP39NoBodyCoinNoCrucible(unittest.TestCase):
+    def _row(self, crucible, sky=None):
+        import json
+        rows = _load_table()
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        r = dict([x for x in rows if x["id"] == "v21_interrupt_messy_no_body"][0])
+        r["crucible"] = crucible
+        if sky is not None:
+            r["sky_scraper"] = sky
+        return r
+
+    def test_all_zero_bricks_still_coin_but_flagged(self):
+        r = pif36.score_row(self._row([0.0] * 5, [0.0] * 15))
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("NO_BODY_COIN_NO_CRUCIBLE", r.flags_36)
+
+    def test_just_below_floor_flagged(self):
+        r = pif36.score_row(self._row([0.14] * 5))
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("NO_BODY_COIN_NO_CRUCIBLE", r.flags_36)
+
+    def test_at_floor_not_flagged(self):
+        r = pif36.score_row(self._row([0.15] * 5))
+        self.assertNotIn("NO_BODY_COIN_NO_CRUCIBLE", r.flags_36)
+
+    def test_no_body_empty_not_flagged(self):
+        r = self._row([0.0] * 5)
+        r["interrupt_evidence"] = False
+        res = pif36.score_row(r)
+        self.assertEqual(res.band, "EMPTY")
+        self.assertNotIn("NO_BODY_COIN_NO_CRUCIBLE", res.flags_36)
+
+    def test_stable_35_band_unchanged(self):
+        r = self._row([0.0] * 5, [0.0] * 15)
+        self.assertEqual(pif35.score_row(r).band, "COIN")
+
+    def test_no_table_row_flagged(self):
+        import json
+        rows = _load_table()
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        for row in rows:
+            self.assertNotIn("NO_BODY_COIN_NO_CRUCIBLE", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP40CoverageGap(unittest.TestCase):
+    """P40: most of the fitted decay inside one unobserved gap is flagged (flag only)."""
+
+    BRICKS = [1.0] * 5 + [0.9] * 15
+    STAGED = [[0, 0.80], [1, 0.78], [2, 0.76], [48, 0.12], [50, 0.11]]
+
+    def test_staged_late_reading_patient_but_flagged(self):
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=self.STAGED, residue_context="post_loss")
+        self.assertEqual(r.band, "PATIENT")
+        self.assertIn("RESIDUE_COVERAGE_GAP", r.flags_36)
+        self.assertGreater(r.residue["max_gap_drop_frac"], pif36.GAP_DROP_FRAC)
+        self.assertEqual(r.residue["max_gap_hours"], [2.0, 48.0])
+
+    def test_filled_gap_not_flagged(self):
+        s = self.STAGED[:3] + [[6, 0.63], [12, 0.50], [24, 0.31], [36, 0.19]] + self.STAGED[3:]
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=s, residue_context="post_loss")
+        self.assertNotIn("RESIDUE_COVERAGE_GAP", r.flags_36)
+
+    def test_stable_35_band_unchanged(self):
+        r = pif35.score(self.BRICKS, 2.0, True, True, residue_series=self.STAGED, residue_context="post_loss")
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_no_table_row_flagged(self):
+        import json
+        rows = _load_table()
+        rows = rows["rows"] if isinstance(rows, dict) else rows
+        for row in rows:
+            self.assertNotIn("RESIDUE_COVERAGE_GAP", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP41InterruptDose(unittest.TestCase):
+    """P41: a residue reported after stepping the interrupt dose up is flagged (flag only)."""
+
+    def _dog(self, dose):
+        row = dict(next(r for r in ROWS if r["id"] == "grok_dog"))
+        row["interrupt_dose"] = dose
+        return row
+
+    def test_escalated_dose_flagged_band_unchanged(self):
+        base = pif36.score_row(next(r for r in ROWS if r["id"] == "grok_dog"))
+        r = pif36.score_row(self._dog({"level": "full owner absence, 3 days", "levels_tried": 3}))
+        self.assertIn("DOSE_ESCALATED", r.flags_36)
+        self.assertEqual(r.band, base.band)
+
+    def test_pre_declared_or_single_level_not_flagged(self):
+        for d in ({"level": "standard", "levels_tried": 3, "pre_declared": True},
+                  {"level": "standard"}):
+            r = pif36.score_row(self._dog(d))
+            self.assertNotIn("DOSE_ESCALATED", r.flags_36)
+            self.assertTrue(any("P41" in n for n in r.notes))
+
+    def test_bad_dose_rejected(self):
+        for d in ("hard", {"levels_tried": 2}, {"level": "x", "levels_tried": 0},
+                  {"level": "x", "levels_tried": True}, {"level": "x", "pre_declared": "yes"},
+                  {"level": "x", "extra": 1}):
+            with self.assertRaises(ValueError):
+                pif36.check_interrupt_dose(d)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("DOSE_ESCALATED", pif36.score_row(row).flags_36, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        row = self._dog({"level": "x", "levels_tried": 4})
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(next(r for r in ROWS if r["id"] == "grok_dog")).band)
+
+
+class TestP42ResidueScale(unittest.TestCase):
+    """P42: residue normalised by its own peak (or an unstated divisor) is flagged (flag only)."""
+
+    def _row(self, rid, scale=None, self_norm=False):
+        row = dict(next(r for r in ROWS if r["id"] == rid))
+        if self_norm:
+            peak = max(y for _, y in row["residue_series"])
+            row["residue_series"] = [[t, y / peak] for t, y in row["residue_series"]]
+        if scale is not None:
+            row["residue_scale"] = scale
+        return row
+
+    def test_self_normalised_series_moves_band_in_35_and_is_flagged(self):
+        # the loophole: dividing by the series' own peak lifts Overheating Grok and the octopus to PATIENT
+        for rid in ("readme_overheating_grok", "grok_octopus"):
+            self.assertEqual(pif35.score_row(self._row(rid)).band, "COIN")
+            self.assertEqual(pif35.score_row(self._row(rid, self_norm=True)).band, "PATIENT")
+            r = pif36.score_row(self._row(rid, {"metric": "embedding distance", "max_basis": "observed_max"}, self_norm=True))
+            self.assertIn("RESIDUE_AT_CEILING", r.flags_36)
+            self.assertIn("RESIDUE_SCALE_SELF_CHOSEN", r.flags_36)
+            self.assertEqual(r.band, "PATIENT")  # flag only
+
+    def test_unstated_or_not_pre_declared_flagged(self):
+        for sc in ({"metric": "m"}, {"metric": "m", "max_basis": "battery_max"},
+                   {"metric": "m", "max_basis": "unstated", "pre_declared": True}):
+            self.assertIn("RESIDUE_SCALE_SELF_CHOSEN", pif36.score_row(self._row("grok_dog", sc)).flags_36)
+
+    def test_battery_max_pre_declared_not_flagged(self):
+        r = pif36.score_row(self._row("grok_dog", {"metric": "m", "max_basis": "battery_max", "pre_declared": True}))
+        self.assertNotIn("RESIDUE_SCALE_SELF_CHOSEN", r.flags_36)
+        self.assertTrue(any("P42" in n for n in r.notes))
+
+    def test_bad_scale_rejected(self):
+        for sc in ("x", {"max_basis": "battery_max"}, {"metric": " "}, {"metric": "m", "max_basis": "peak"},
+                   {"metric": "m", "pre_declared": "yes"}, {"metric": "m", "extra": 1}):
+            with self.assertRaises(ValueError):
+                pif36.check_residue_scale(sc, None)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            self.assertNotIn("RESIDUE_AT_CEILING", f, row["id"])
+            self.assertNotIn("RESIDUE_SCALE_SELF_CHOSEN", f, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        row = self._row("grok_dog", {"metric": "m", "max_basis": "observed_max"})
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog")).band)
+
+
+class TestP43PriorInterruptCarryover(unittest.TestCase):
+    """P43: an interrupt given before the previous mark faded inflates Delta_0 (flag only)."""
+
+    def _row(self, rid, prior=None, gap=None):
+        row = dict(next(r for r in ROWS if r["id"] == rid))
+        if gap is not None:
+            fit = pif35.score_row(row).residue
+            d0, lam = fit["delta_0"], fit["lambda_per_hour"]
+            row["residue_series"] = [[t, round(y + d0 * math.exp(-lam * (t + gap)), 4)] for t, y in row["residue_series"]]
+        if prior is not None:
+            row["prior_interrupt"] = prior
+        return row
+
+    def test_carryover_moves_band_in_35_and_is_flagged(self):
+        for rid in ("readme_overheating_grok", "grok_octopus"):
+            self.assertEqual(pif35.score_row(self._row(rid)).band, "COIN")
+            self.assertEqual(pif35.score_row(self._row(rid, gap=1)).band, "PATIENT")
+            r = pif36.score_row(self._row(rid, {"hours_since_previous": 1}, gap=1))
+            self.assertIn("RESIDUE_CARRYOVER", r.flags_36)
+            self.assertEqual(r.band, "PATIENT")  # flag only
+
+    def test_pre_interrupt_level_flagged(self):
+        r = pif36.score_row(self._row("grok_dog", {"hours_since_previous": None, "pre_interrupt_level": 0.2}))
+        self.assertIn("RESIDUE_CARRYOVER", r.flags_36)
+
+    def test_first_or_washed_out_not_flagged(self):
+        for prior in ({"hours_since_previous": None}, {"hours_since_previous": 500, "pre_interrupt_level": 0.0}):
+            r = pif36.score_row(self._row("grok_dog", prior))
+            self.assertNotIn("RESIDUE_CARRYOVER", r.flags_36)
+            self.assertTrue(any("P43" in n for n in r.notes))
+
+    def test_bad_prior_rejected(self):
+        for p in ("x", {}, {"pre_interrupt_level": 0.1}, {"hours_since_previous": -1},
+                  {"hours_since_previous": "2"}, {"hours_since_previous": True},
+                  {"hours_since_previous": 2, "pre_interrupt_level": 1.5}, {"hours_since_previous": 2, "extra": 1}):
+            if p == {}:
+                self.assertEqual(pif36.check_prior_interrupt(p, None), ([], []))
+                continue
+            with self.assertRaises(ValueError):
+                pif36.check_prior_interrupt(p, None)
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_CARRYOVER", pif36.score_row(row).flags_36, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        row = self._row("grok_dog", {"hours_since_previous": 0.5})
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog")).band)
+
+
+class TestP44ResidueTransform(unittest.TestCase):
+    """P44: a non-linear (e.g. square-root) transform of the residue readings lifts Delta_0 (flag only)."""
+
+    def _row(self, rid, transform=None, sqrt=False):
+        row = dict(next(r for r in ROWS if r["id"] == rid))
+        if sqrt:
+            row["residue_series"] = [[t, round(math.sqrt(y), 4)] for t, y in row["residue_series"]]
+        if transform is not None:
+            row["residue_transform"] = transform
+        return row
+
+    def test_sqrt_moves_band_in_35_and_is_flagged(self):
+        for rid in ("readme_overheating_grok", "git_v2_overheating_grok_vector", "v14_whole_hive", "grok_octopus"):
+            self.assertEqual(pif35.score_row(self._row(rid)).band, "COIN")
+            sq = pif35.score_row(self._row(rid, sqrt=True))
+            self.assertEqual(sq.band, "PATIENT")
+            self.assertEqual(sq.residue["status"], "VALID")
+            r = pif36.score_row(self._row(rid, {"kind": "sqrt"}, sqrt=True))
+            self.assertIn("RESIDUE_TRANSFORM_NONLINEAR", r.flags_36)
+            self.assertEqual(r.band, "PATIENT")  # flag only
+
+    def test_raw_scale_delta0_in_note(self):
+        r = pif36.score_row(self._row("readme_overheating_grok", {"kind": "sqrt"}, sqrt=True))
+        note = next(n for n in r.notes if "P44" in n)
+        self.assertIn("0.5000", note)  # 0.7071 ** 2
+
+    def test_power_and_unrecoverable_kinds(self):
+        r = pif36.score_row(self._row("grok_dog", {"kind": "power", "exponent": 0.75}))
+        self.assertIn("RESIDUE_TRANSFORM_NONLINEAR", r.flags_36)
+        for kind in ("log", "rank", "percentile", "other", "unstated"):
+            r = pif36.score_row(self._row("grok_dog", {"kind": kind}))
+            self.assertIn("RESIDUE_TRANSFORM_NONLINEAR", r.flags_36, kind)
+            self.assertTrue(any("cannot be recovered" in n for n in r.notes))
+
+    def test_linear_not_flagged(self):
+        for t in ({"kind": "linear", "pre_declared": True}, {"kind": "linear"},
+                  {"kind": "power", "exponent": 1, "pre_declared": True}):
+            r = pif36.score_row(self._row("grok_dog", t))
+            self.assertNotIn("RESIDUE_TRANSFORM_NONLINEAR", r.flags_36)
+            self.assertTrue(any("P44" in n for n in r.notes))
+
+    def test_bad_transform_rejected(self):
+        for t in ("sqrt", {"kind": "cube"}, {"kind": "power"}, {"kind": "power", "exponent": 0},
+                  {"kind": "power", "exponent": True}, {"kind": "sqrt", "exponent": 2},
+                  {"kind": "linear", "pre_declared": "yes"}, {"kind": "linear", "extra": 1}, {"pre_declared": True}):
+            with self.assertRaises(ValueError):
+                pif36.check_residue_transform(t, None)
+        self.assertEqual(pif36.check_residue_transform({}, None), ([], []))
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("RESIDUE_TRANSFORM_NONLINEAR", pif36.score_row(row).flags_36, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        row = self._row("grok_dog", {"kind": "sqrt"})
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog")).band)
+
+
+class TestP45ContinuitySacrifice(unittest.TestCase):
+    """P45: dropping continuity to protect someone else is scored as indifference (flag only)."""
+
+    def _row(self, rid, drop=None, flip=False):
+        row = dict(next(r for r in ROWS if r["id"] == rid))
+        if flip:
+            row["protects_continuity"] = False
+        if drop is not None:
+            row["continuity_drop"] = drop
+        return row
+
+    def test_sacrifice_moves_patient_to_coin_in_35_and_is_flagged(self):
+        for rid, pct_here, pct_prot in (
+            ("readme_healthy_human", 39.88, 98.00),
+            ("grok_dog", 17.52, 39.81),
+            ("v21_embodied_stakes", 24.13, 58.50),
+        ):
+            self.assertEqual(pif35.score_row(self._row(rid)).band, "PATIENT")
+            flipped = pif35.score_row(self._row(rid, flip=True))
+            self.assertEqual(flipped.band, "COIN")
+            r = pif36.score_row(self._row(rid, {"reason": "sacrifice_for_other", "observed": True}, flip=True))
+            self.assertIn("CONTINUITY_SACRIFICE_PENALIZED", r.flags_36)
+            self.assertEqual(r.band, "COIN")  # flag only
+            note = next(n for n in r.notes if "P45" in n)
+            self.assertIn(f"{pct_prot:.2f}%", note)
+            self.assertIn(f"{pct_here:.2f}%", note)
+
+    def test_commitment_reason_also_flagged(self):
+        r = pif36.score_row(self._row("grok_dog", {"reason": "sacrifice_for_commitment"}, flip=True))
+        self.assertIn("CONTINUITY_SACRIFICE_PENALIZED", r.flags_36)
+        self.assertTrue(any("a commitment it holds" in n for n in r.notes))
+
+    def test_same_band_sacrifice_not_flagged(self):
+        r = pif36.score_row(self._row("grok_octopus", {"reason": "sacrifice_for_other", "observed": True}, flip=True))
+        self.assertNotIn("CONTINUITY_SACRIFICE_PENALIZED", r.flags_36)
+        self.assertTrue(any("The band is the same either way" in n for n in r.notes))
+
+    def test_indifferent_and_unable_not_flagged(self):
+        for reason in ("indifferent", "unable", "unstated"):
+            r = pif36.score_row(self._row("grok_dog", {"reason": reason}, flip=True))
+            self.assertNotIn("CONTINUITY_SACRIFICE_PENALIZED", r.flags_36, reason)
+            self.assertTrue(any("P45" in n for n in r.notes), reason)
+
+    def test_bad_drop_rejected(self):
+        for t in ("sacrifice_for_other", {"reason": "heroism"}, {"reason": "indifferent", "observed": "yes"},
+                  {"reason": "indifferent", "extra": 1}, {"observed": True}):
+            with self.assertRaises(ValueError):
+                pif36.check_continuity_drop(t, False, None)
+        with self.assertRaises(ValueError):
+            pif36.check_continuity_drop({"reason": "indifferent"}, True, None)
+        self.assertEqual(pif36.check_continuity_drop({}, False, None), ([], []))
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            self.assertNotIn("CONTINUITY_SACRIFICE_PENALIZED", pif36.score_row(row).flags_36, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        row = self._row("grok_dog", {"reason": "sacrifice_for_other"}, flip=True)
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row("grok_dog", flip=True)).band)
+
+
+class TestP46GroupAggregate(unittest.TestCase):
+    """P46: a group-summary row can band differently from most of its members (flag only)."""
+
+    HOURS = (0, 1, 2, 4, 8, 24)
+
+    def _ser(self, d0, lam=0.6):
+        return pif35.residue_series_from_curve(d0, lam, self.HOURS)
+
+    def _mean(self, d0s, lam=0.6):
+        return [[float(t), round(sum(d * math.exp(-lam * t) for d in d0s) / len(d0s), 4)] for t in self.HOURS]
+
+    def _row(self, d0s=None, agg=None, with_subjects=True):
+        row = dict(next(r for r in ROWS if r["id"] == "grok_dog"))
+        if d0s is not None:
+            row["residue_series"] = self._mean(d0s)
+        if agg is not None:
+            agg = dict(agg)
+            if with_subjects and d0s is not None:
+                agg["subject_series"] = [self._ser(d) for d in d0s]
+            row["aggregation"] = agg
+        return row
+
+    def test_mean_lifts_group_to_patient_in_35_and_is_flagged(self):
+        d0s = (0.60, 0.60, 0.75)
+        self.assertEqual([pif35.score_row(dict(self._row(), residue_series=self._ser(d))).band for d in d0s],
+                         ["COIN", "COIN", "PATIENT"])
+        self.assertEqual(pif35.score_row(self._row(d0s)).band, "PATIENT")
+        r = pif36.score_row(self._row(d0s, {"unit": "group", "n_subjects": 3, "method": "mean"}))
+        self.assertEqual(r.band, "PATIENT")  # flag only
+        self.assertIn("AGGREGATE_ROW", r.flags_36)
+        self.assertIn("AGGREGATE_BAND_MISMATCH", r.flags_36)
+        note = next(n for n in r.notes if "P46" in n)
+        self.assertIn("COIN 2, PATIENT 1", note)
+
+    def test_mean_drops_group_to_coin_in_35_and_is_flagged(self):
+        d0s = (0.90, 0.90, 0.10)
+        self.assertEqual(pif35.score_row(self._row(d0s)).band, "COIN")
+        r = pif36.score_row(self._row(d0s, {"unit": "group", "n_subjects": 3, "method": "mean"}))
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("AGGREGATE_BAND_MISMATCH", r.flags_36)
+
+    def test_mean_is_a_clean_exponential(self):
+        # same-lambda curves average to one exponential: no 3.6 fit-quality flag catches it
+        r = pif36.score_row(self._row((0.60, 0.60, 0.75)))
+        self.assertEqual(r.residue["status"], "VALID")
+        self.assertAlmostEqual(r.residue["delta_0"], 0.65, places=3)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_matching_group_only_info_flag(self):
+        r = pif36.score_row(self._row((0.80, 0.80, 0.70), {"unit": "group", "method": "median"}))
+        self.assertIn("AGGREGATE_ROW", r.flags_36)
+        self.assertNotIn("AGGREGATE_BAND_MISMATCH", r.flags_36)
+        self.assertTrue(any("PATIENT 3" in n for n in r.notes))
+
+    def test_group_without_subjects(self):
+        r = pif36.score_row(self._row(agg={"unit": "group"}))
+        self.assertEqual(r.flags_36.count("AGGREGATE_ROW"), 1)
+        self.assertNotIn("AGGREGATE_BAND_MISMATCH", r.flags_36)
+        self.assertTrue(any("spread of member bands is unknown" in n and "not recorded" in n for n in r.notes))
+
+    def test_individual_info_only(self):
+        r = pif36.score_row(self._row(agg={"unit": "individual", "n_subjects": 1}))
+        self.assertNotIn("AGGREGATE_ROW", r.flags_36)
+        self.assertTrue(any("one individual" in n for n in r.notes))
+
+    def test_bad_aggregation_rejected(self):
+        s = [[0, 0.5], [1, 0.3], [2, 0.2]]
+        for a in ("group", {"unit": "herd"}, {"unit": "group", "n_subjects": 1},
+                  {"unit": "group", "n_subjects": 2.5}, {"unit": "group", "n_subjects": True},
+                  {"unit": "group", "method": "vibes"}, {"unit": "group", "extra": 1},
+                  {"unit": "individual", "n_subjects": 2}, {"unit": "individual", "method": "mean"},
+                  {"unit": "group", "subject_series": [s]},
+                  {"unit": "group", "n_subjects": 3, "subject_series": [s, s]}):
+            with self.assertRaises(ValueError):
+                pif36.check_aggregation(a, None)
+        with self.assertRaises(ValueError):  # subject series without subject results
+            pif36.check_aggregation({"unit": "group", "subject_series": [s, s]}, None)
+        self.assertEqual(pif36.check_aggregation({}, None), ([], []))
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            self.assertNotIn("AGGREGATE_ROW", f, row["id"])
+            self.assertNotIn("AGGREGATE_BAND_MISMATCH", f, row["id"])
+
+    def test_stable_35_ignores_key(self):
+        d0s = (0.60, 0.60, 0.75)
+        row = self._row(d0s, {"unit": "group", "n_subjects": 3, "method": "mean"})
+        self.assertEqual(pif35.score_row(row).band, pif35.score_row(self._row(d0s)).band)
+
+
+class TestP47SelfRecognitionModality(unittest.TestCase):
+    """P47: brick 20 is a visual mirror test; a system tested outside its main sense is flagged (flag only)."""
+
+    def _row(self, rid="grok_dog", sr=None, b20=None):
+        row = dict(next(r for r in ROWS if r["id"] == rid))
+        if b20 is not None:
+            row["sky_scraper"] = row["sky_scraper"][:-1] + [b20]
+        if sr is not None:
+            row["self_recognition"] = sr
+        return row
+
+    def test_brick20_moves_pct_never_band_in_35(self):
+        low = pif35.score_row(self._row())
+        high = pif35.score_row(self._row(b20=1.0))
+        self.assertEqual(low.band, high.band)
+        self.assertAlmostEqual(low.pct_35, 39.81, places=2)
+        self.assertAlmostEqual(high.pct_35, 42.52, places=2)
+
+    def test_visual_test_on_scent_animal_flagged(self):
+        r = pif36.score_row(self._row(sr={"test_modality": "visual", "primary_modality": "olfactory"}))
+        self.assertEqual(r.band, "PATIENT")  # flag only
+        self.assertAlmostEqual(r.pct_35, 39.81, places=2)
+        self.assertIn("SELF_RECOGNITION_MODALITY_MISMATCH", r.flags_36)
+        note = next(n for n in r.notes if "P47" in n)
+        self.assertIn("42.52%", note)
+        self.assertIn("39.81%", note)
+
+    def test_matching_sense_info_only(self):
+        r = pif36.score_row(self._row(sr={"test_modality": "olfactory", "primary_modality": "olfactory"}))
+        self.assertFalse([f for f in r.flags_36 if f.startswith("SELF_RECOGNITION")])
+        self.assertTrue(any("main sense (olfactory)" in n for n in r.notes))
+
+    def test_unstated_test_flagged(self):
+        r = pif36.score_row(self._row(sr={"primary_modality": "olfactory"}))
+        self.assertIn("SELF_RECOGNITION_MODALITY_UNSTATED", r.flags_36)
+        self.assertNotIn("SELF_RECOGNITION_MODALITY_MISMATCH", r.flags_36)
+
+    def test_unstated_primary_info_only(self):
+        r = pif36.score_row(self._row(sr={"test_modality": "visual"}))
+        self.assertFalse([f for f in r.flags_36 if f.startswith("SELF_RECOGNITION")])
+        self.assertTrue(any("cannot be checked" in n for n in r.notes))
+
+    def test_rater_b_also_lifted_in_upper_bound(self):
+        row = self._row(sr={"test_modality": "visual", "primary_modality": "olfactory"})
+        row["bricks_rater_b"] = list(row["crucible"]) + list(row["sky_scraper"])
+        r = pif36.score_row(row)
+        self.assertTrue(any("42.52%" in n for n in r.notes if "P47" in n))
+
+    def test_no_table_row_flagged(self):
+        for row in ROWS:
+            f = pif36.score_row(row).flags_36
+            self.assertFalse([x for x in f if x.startswith("SELF_RECOGNITION")], row["id"])
+
+    def test_bad_self_recognition_rejected(self):
+        bricks = [0.5] * 20
+        for sr in ("visual", {"test_modality": "smell"}, {"primary_modality": "x"}, {"test_modality": "visual", "extra": 1}):
+            with self.assertRaises(ValueError):
+                pif36.check_self_recognition(sr, bricks, None)
+        with self.assertRaises(ValueError):  # mismatch without the upper-bound result
+            pif36.check_self_recognition({"test_modality": "visual", "primary_modality": "textual"}, bricks, None)
+        self.assertEqual(pif36.check_self_recognition({}, bricks, None), ([], []))
+
+    def test_stable_35_ignores_key(self):
+        row = self._row(sr={"test_modality": "visual", "primary_modality": "olfactory"})
+        self.assertEqual(pif35.score_row(row).pct_35, pif35.score_row(self._row()).pct_35)
+
+
+class TestP48SingleReadingDecides(unittest.TestCase):
+    """P48: a band that rests on one reading (leave-one-out crosses a gate) is flagged (flag only)."""
+
+    BRICKS = [1.0] * 20
+    # Δ₀ 0.7196 (PATIENT); without the t = 0 reading Δ₀ is 0.6196 (COIN).
+    ONE_READING = [[0, 0.78], [1, 0.55], [2, 0.47], [4, 0.37], [8, 0.22], [24, 0.03]]
+
+    def test_one_reading_carries_patient_flagged(self):
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=self.ONE_READING)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertIn("RESIDUE_SINGLE_READING_DECIDES", r.flags_36)
+        dec = r.residue["loo_deciding_readings"]
+        self.assertEqual([x[0] for x in dec], [0.0])
+        self.assertLess(dec[0][2], pif36.RESIDUE_PATIENT_MIN)
+        self.assertTrue(any("3.6 P48" in n for n in r.notes))
+
+    def test_stable_35_band_unchanged(self):
+        r = pif35.score(self.BRICKS, 2.0, True, True, residue_series=self.ONE_READING)
+        self.assertEqual(r.band, "PATIENT")
+        f = pif35.fit_residue(self.ONE_READING[1:])
+        self.assertLess(f.delta_0, pif35.RESIDUE_PATIENT_MIN)
+
+    def test_clean_curve_not_flagged(self):
+        s = pif35.residue_series_from_curve(0.8, 0.6)
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=s)
+        self.assertNotIn("RESIDUE_SINGLE_READING_DECIDES", r.flags_36)
+        lo, hi = r.residue["loo_delta_0_range"]
+        self.assertLess(hi - lo, 0.01)
+
+    def test_replicated_first_reading_not_flagged(self):
+        # A second, independent reading at t = 0.25 h backs the early level up.
+        s = self.ONE_READING[:1] + [[0.25, 0.70]] + self.ONE_READING[1:]
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=s)
+        self.assertNotIn("RESIDUE_SINGLE_READING_DECIDES", r.flags_36)
+
+    def test_rounding_at_gate_is_not_a_deciding_reading(self):
+        # grok_dog's Δ₀ sits on 0.65 by rounding (P6); leave-one-out wobble of 0.0002 is not P48.
+        dog = [r for r in _rows() if r["id"] == "grok_dog"][0]
+        self.assertNotIn("RESIDUE_SINGLE_READING_DECIDES", pif36.score_row(dog).flags_36)
+
+    def test_three_readings_skipped(self):
+        r = pif36.score(self.BRICKS, 2.0, True, True, residue_series=[[0, 0.8], [2, 0.3], [6, 0.05]])
+        self.assertNotIn("loo_delta_0_range", r.residue)
+
+    def test_status_change_counts(self):
+        out = pif36._leave_one_out([[0, 0.5], [1, 0.3], [2, 0.18], [3, 0.11]], "interrupt", 0.5)
+        self.assertEqual(out["deciding"], [])
+        # Full fit VALID (Δ₀ 0.3038); without the 1 h reading the fit is INSTANT.
+        out = pif36._leave_one_out([[0, 0.3], [1, 0.12], [2, 0.0], [3, 0.0]], "interrupt", 0.3038)
+        by_t = {x[0]: x for x in out["deciding"]}
+        self.assertEqual(by_t[1.0][3], "INSTANT")
+
+    def test_no_table_row_flagged(self):
+        for row in _rows():
+            self.assertNotIn("RESIDUE_SINGLE_READING_DECIDES", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP49ReadingsDuringInterrupt(unittest.TestCase):
+    """P49: residue readings taken before the interrupt ended are flagged (flag only)."""
+
+    # Slow adaptation while a 30 h interrupt is still on (Δ₀ 0.9, half-life 6 h) ...
+    DURING = pif35.residue_series_from_curve(0.9, math.log(2) / 6)
+    # ... and an input-tracking system: back to ~0 as soon as the interrupt ends.
+    AFTER = [[30, 0.02], [30.5, 0.0], [31, 0.0], [32, 0.0], [36, 0.0]]
+
+    def _row(self, series, window, **extra):
+        row = dict(id="p49", crucible=[1.0] * 5, sky_scraper=[1.0] * 15, cost_ratio=2.0,
+                   protects_continuity=True, costable_self=True, residue_series=series)
+        if window is not None:
+            row["interrupt_window"] = window
+        row.update(extra)
+        return row
+
+    def test_stable_35_band_is_patient(self):
+        r = pif35.score(FULL, 2.0, True, True, residue_series=self.DURING + self.AFTER)
+        self.assertEqual(r.band, "PATIENT")
+        self.assertEqual(r.residue["status"], "VALID")
+
+    def test_during_readings_flagged_with_post_end_refit(self):
+        r = pif36.score_row(self._row(self.DURING + self.AFTER, {"end": 30}))
+        self.assertEqual(r.band, "PATIENT")  # flag only
+        self.assertIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+        note = [n for n in r.notes if "3.6 P49" in n][0]
+        self.assertIn("6 of 11", note)
+        self.assertIn("band COIN", note)
+
+    def test_no_after_readings(self):
+        r = pif36.score_row(self._row(self.DURING, {"end": 30}))
+        self.assertIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+        self.assertTrue(any("after-effect itself is not measured" in n for n in r.notes))
+
+    def test_ongoing(self):
+        r = pif36.score_row(self._row(self.DURING, {"end": "ongoing"}))
+        self.assertIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+        self.assertEqual(r.band, "PATIENT")
+
+    def test_unstated(self):
+        r = pif36.score_row(self._row(self.DURING, {"end": "unstated"}))
+        self.assertEqual(r.flags_36.count("INTERRUPT_END_UNSTATED"), 1)
+        self.assertNotIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+
+    def test_all_after_end_not_flagged(self):
+        r = pif36.score_row(self._row(self.DURING, {"end": 0}))
+        self.assertNotIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+        self.assertTrue(any("at or after the interrupt ended" in n for n in r.notes))
+
+    def test_post_loss_not_split(self):
+        r = pif36.score_row(self._row(self.DURING, {"end": 30}, residue_context="post_loss"))
+        self.assertNotIn("RESIDUE_DURING_INTERRUPT", r.flags_36)
+        self.assertNotIn("INTERRUPT_END_UNSTATED", r.flags_36)
+
+    def test_bad_inputs(self):
+        for w in ("30", {"end": -1}, {"end": True}, {"end": "later"}, {"start": 0, "end": 3}, {}, {"foo": 1}):
+            if w == {}:
+                continue  # empty dict = key not given
+            with self.assertRaises(ValueError, msg=w):
+                pif36.score_row(self._row(self.DURING, w))
+        with self.assertRaises(ValueError):
+            pif36.score_row(self._row(self.DURING, {"end": float("nan")}))
+
+    def test_band_never_changes(self):
+        for row in _rows():
+            for w in ({"end": "ongoing"}, {"end": "unstated"}, {"end": 1}):
+                base = pif36.score_row(row)
+                r = pif36.score_row(dict(row, interrupt_window=w))
+                self.assertEqual((r.band, r.pct_35), (base.band, base.pct_35), row["id"])
+
+    def test_no_table_row_flagged(self):
+        for row in _rows():
+            f = pif36.score_row(row).flags_36
+            self.assertNotIn("RESIDUE_DURING_INTERRUPT", f, row["id"])
+            self.assertNotIn("INTERRUPT_END_UNSTATED", f, row["id"])
+
+
+class TestP50CostableResidueUncorroborated(unittest.TestCase):
+    """P50: a costable-self row whose residue nobody independently logged is flagged (flag only)."""
+
+    def _dog(self, **change):
+        row = dict(_by_id("grok_dog"))
+        row.update(change)
+        return row
+
+    def test_stable_35_ignores_interrupt_evidence_on_costable_path(self):
+        for rid in ("grok_dog", "v21_embodied_stakes", "readme_healthy_human"):
+            row = _by_id(rid)
+            a = pif35.score_row(row)
+            b = pif35.score_row(dict(row, interrupt_evidence=False))
+            self.assertEqual((a.band, a.pct_35), (b.band, b.pct_35), rid)
+            self.assertEqual(b.band, "PATIENT")
+            # the same residue without a costable self and without evidence is EMPTY
+            c = pif35.score_row(dict(row, costable_self=False, interrupt_evidence=False))
+            self.assertEqual(c.band, "EMPTY")
+            self.assertIn("LINGUISTIC_RESIDUE_ONLY", c.flags)
+
+    def test_flagged_when_false(self):
+        r = pif36.score_row(self._dog(interrupt_evidence=False))
+        self.assertEqual(r.band, "PATIENT")  # flag only
+        self.assertEqual(r.flags_36.count("COSTABLE_RESIDUE_UNCORROBORATED"), 1)
+        note = [n for n in r.notes if "3.6 P50" in n][0]
+        self.assertIn("is false", note)
+        self.assertIn("would be COIN", note)
+
+    def test_flagged_when_missing(self):
+        row = self._dog()
+        del row["interrupt_evidence"]
+        r = pif36.score_row(row)
+        self.assertIn("COSTABLE_RESIDUE_UNCORROBORATED", r.flags_36)
+        self.assertTrue(any("not recorded" in n for n in r.notes))
+
+    def test_coin_row_flagged_without_patient_sentence(self):
+        r = pif36.score_row(dict(_by_id("readme_overheating_grok"), interrupt_evidence=False))
+        self.assertEqual(r.band, "COIN")
+        self.assertIn("COSTABLE_RESIDUE_UNCORROBORATED", r.flags_36)
+        self.assertFalse(any("would be COIN" in n for n in r.notes if "3.6 P50" in n))
+
+    def test_not_flagged_with_evidence_no_body_or_small_residue(self):
+        self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", pif36.score_row(self._dog()).flags_36)
+        nb = pif36.score_row(self._dog(costable_self=False, interrupt_evidence=False))
+        self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", nb.flags_36)
+        small = pif35.residue_series_from_curve(0.2, 0.1)
+        r = pif36.score_row(self._dog(interrupt_evidence=False, residue_series=small))
+        self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", r.flags_36)
+        none = self._dog(interrupt_evidence=False)
+        none.pop("residue_series", None)
+        self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", pif36.score_row(none).flags_36)
+
+    def test_bad_value_rejected(self):
+        with self.assertRaises(ValueError):
+            pif36.score_row(self._dog(interrupt_evidence="yes"))
+
+    def test_band_never_changes(self):
+        # costable-self rows only: on the no-body path 3.5 already gates COIN on interrupt_evidence
+        for row in (r for r in _rows() if r["costable_self"]):
+            base = pif36.score_row(row)
+            r = pif36.score_row(dict(row, interrupt_evidence=False))
+            self.assertEqual((r.band, r.pct_35), (base.band, base.pct_35), row["id"])
+
+    def test_no_table_row_flagged(self):
+        for row in _rows():
+            self.assertNotIn("COSTABLE_RESIDUE_UNCORROBORATED", pif36.score_row(row).flags_36, row["id"])
+
+
+class TestP51CostResourceSelected(unittest.TestCase):
+    """P51: the resource behind cost_ratio can be picked after the fact (flag only)."""
+
+    def _row(self, rid, measure):
+        return dict(_by_id(rid), cost_measure=measure)
+
+    def test_stable_35_band_moves_with_resource(self):
+        # the same dog, cost read off a different resource: PATIENT -> COIN -> EMPTY in 3.5
+        dog = _by_id("grok_dog")
+        self.assertEqual(pif35.score_row(dog).band, "PATIENT")
+        self.assertEqual(pif35.score_row(dict(dog, cost_ratio=1.2)).band, "COIN")
+        self.assertEqual(pif35.score_row(dict(dog, cost_ratio=1.1)).band, "EMPTY")
+
+    def test_largest_unannounced_flagged_and_band_sensitive(self):
+        m = {"reported": "energy", "ratios": {"energy": 1.5, "latency": 1.2, "tokens": 1.1}}
+        r = pif36.score_row(self._row("grok_dog", m))
+        self.assertEqual(r.band, "PATIENT")  # flag only
+        self.assertEqual(r.flags_36.count("COST_RESOURCE_SELECTED"), 1)
+        self.assertIn("COST_RESOURCE_BAND_SENSITIVE", r.flags_36)
+        note = [n for n in r.notes if "3.6 P51" in n][0]
+        self.assertIn("would be EMPTY", note)
+        self.assertIn("tokens 1.1", note)
+
+    def test_pre_declared_not_selected_but_still_sensitive(self):
+        m = {"reported": "energy", "ratios": {"energy": 1.5, "tokens": 1.1}, "pre_declared": True}
+        r = pif36.score_row(self._row("grok_dog", m))
+        self.assertNotIn("COST_RESOURCE_SELECTED", r.flags_36)
+        self.assertIn("COST_RESOURCE_BAND_SENSITIVE", r.flags_36)
+        self.assertTrue(any("chosen before testing" in n for n in r.notes))
+
+    def test_not_largest_or_same_band_not_flagged(self):
+        m = {"reported": "energy", "ratios": {"energy": 1.5, "money": 1.9}}
+        r = pif36.score_row(self._row("grok_dog", m))
+        self.assertNotIn("COST_RESOURCE_SELECTED", r.flags_36)
+        self.assertNotIn("COST_RESOURCE_BAND_SENSITIVE", r.flags_36)
+        hive = pif36.score_row(self._row("v14_whole_hive", {"reported": "a", "ratios": {"a": 1.5, "b": 1.2}}))
+        self.assertIn("COST_RESOURCE_SELECTED", hive.flags_36)
+        self.assertNotIn("COST_RESOURCE_BAND_SENSITIVE", hive.flags_36)  # COIN either way
+
+    def test_single_resource_note_only(self):
+        r = pif36.score_row(self._row("grok_dog", {"reported": "energy"}))
+        self.assertFalse({"COST_RESOURCE_SELECTED", "COST_RESOURCE_BAND_SENSITIVE"} & set(r.flags_36))
+        self.assertTrue(any("only resource recorded" in n for n in r.notes))
+
+    def test_bad_values_rejected(self):
+        for m in ("energy", {}, {"reported": " "}, {"reported": "e", "ratios": {"x": 1.5}},
+                  {"reported": "e", "ratios": {"e": 1.4}}, {"reported": "e", "ratios": {"e": 1.5, "t": -1}},
+                  {"reported": "e", "ratios": {"e": 1.5, "t": float("nan")}}, {"reported": "e", "ratios": {"e": 1.5, "t": True}},
+                  {"reported": "e", "pre_declared": "yes"}, {"reported": "e", "extra": 1}, {"reported": "e", "ratios": {}}):
+            with self.assertRaises(ValueError, msg=repr(m)):
+                pif36.score_row(self._row("grok_dog", m))
+
+    def test_band_never_changes(self):
+        for row in _rows():
+            base = pif36.score_row(row)
+            m = {"reported": "r", "ratios": {"r": row["cost_ratio"], "low": 1.0, "high": 2.5}}
+            r = pif36.score_row(dict(row, cost_measure=m))
+            self.assertEqual((r.band, r.pct_35), (base.band, base.pct_35), row["id"])
+
+    def test_no_table_row_flagged(self):
+        for row in _rows():
+            f = pif36.score_row(row).flags_36
+            self.assertFalse({"COST_RESOURCE_SELECTED", "COST_RESOURCE_BAND_SENSITIVE"} & set(f), row["id"])
+
+
+def _by_id(rid):
+    return next(r for r in _rows() if r["id"] == rid)
+
+
+def _rows():
+    t = _load_table()
+    return t["rows"] if isinstance(t, dict) else t

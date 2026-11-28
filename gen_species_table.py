@@ -43,6 +43,15 @@ def short_prov(p):
     return "mixed (repo + Athena est.)" if any(v.startswith("repo") for v in vals) else "Athena est."
 
 
+def evidence_cell(row):
+    """Compact evidence class (3.6 draft, P11): overall, then bricks/cost/continuity/residue initials."""
+    ev = row.get("evidence_class")
+    if not ev:
+        return "—"
+    ab = lambda k: {"measured": "M", "observed": "O", "assumed": "A", "none": "–"}.get(ev.get(k), "?")
+    return f"{ev.get('overall', '?')} ({ab('bricks')}/{ab('cost_ratio')}/{ab('protects_continuity')}/{ab('residue')})"
+
+
 def render(table):
     lines = [
         "# PIF 3.5: species results",
@@ -53,8 +62,8 @@ def render(table):
         "Brick order: v2.0 README (Crucible 1-5, Sky-Scraper 6-20). Residue fitted from (t hours, residue) samples. "
         "`v2.0 %` = (C + S*M)/20 with no v3 layers; `3.5 %` = (C_adj + S*(1 - 0.5*psi)*M_adj)/20.",
         "",
-        "| Case | C | S | v2.0 % | cost | TS | psi | C_adj | 3.5 % | Delta_0 | lambda /h | half-life h | residue | Band | Intended | Match | Provenance |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| Case | C | S | v2.0 % | cost | TS | psi | C_adj | 3.5 % | Delta_0 | lambda /h | half-life h | residue | Band | Intended | Match | Provenance | Role | Evidence (bricks/cost/continuity/residue) |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     misses = []
     for row in table["rows"]:
@@ -67,11 +76,15 @@ def render(table):
         lines.append(
             f"| {row['name']}{' (threshold-adjacent: Δ₀ = 0.65 bar)' if any('threshold-adjacent' in n for n in row.get('notes', [])) else ''} | {r.c:g} | {r.s:g} | {r.pct_v20:.2f} | {row['cost_ratio']:g} | {r.throttle_signal:.3f} | {r.psi:.3f} | "
             f"{r.c_adj:.3f} | {r.pct_35:.2f} | {f(res['delta_0'])} | {f(res['lambda_per_hour'])} | {f(res['half_life_hours'])} | "
-            f"{status} | **{r.band}** | {row['intended_band']} | {'n/a (legacy)' if legacy else '✅' if ok else '❌'} | {short_prov(row['provenance'])} |")
+            f"{status} | **{r.band}** | {row['intended_band']} | {'n/a (legacy)' if legacy else '✅' if ok else '❌'} | {short_prov(row['provenance'])} | "
+            f"{row.get('row_role', '—').replace('_', ' ')} | {evidence_cell(row)} |")
         if not ok:
             misses.append(f"- **{row['name']}**: {r.band} vs intended {row['intended_band']}. {'; '.join(r.band_reasons)}")
     n_legacy = sum(1 for r in table["rows"] if r.get("band_assertion") == "legacy")
     lines += ["", f"Rows: {len(table['rows'])} ({n_legacy} legacy/unmeasured, excluded from misses). Off intended band: {len(misses)}.", ""]
+    if any(r.get("evidence_class") for r in table["rows"]):
+        lines += ["Evidence key (PIF 3.6 draft, P11): M = measured, O = observed, A = assumed, – = none. "
+                  "Human rows and AI rows are held to the same key, so assumed inputs are visible on both sides.", ""]
     if misses:
         lines += ["## Off intended band", ""] + misses + [""]
     return "\n".join(lines)
