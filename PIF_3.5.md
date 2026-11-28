@@ -56,6 +56,7 @@ v2.0 README order: **Crucible = bricks 1–5** (1 embodiment, 2 minimal self, 3 
 ## Changes vs v2.1 (`scorer_v21_bands.py`)
 - The v2.1 thresholds for EMPTY/COIN (0.35) and PATIENT (0.65) are kept, but they apply to the fitted Δ₀ instead of a single point score.
 - The cost gate now comes from a measured cost ratio. A boolean costable flag alone is not enough.
+  - `cost_ratio` is one unitless ratio (cost while protecting continuity ÷ cost while not). 3.5 does not say which resource it is measured on (energy, compute, latency, tokens, money, …) and does not record how many were measured. The ramp is steep between 1.05 and 1.4, so the choice matters: `grok_dog` is PATIENT at 1.5, COIN at 1.2 (TS 0.362 < 0.5) and EMPTY at 1.1. See P51 in `PIF_3.6_PATCHES.md`.
 - The v2.1 tie-break order and the COIN-expiry rule are unchanged. COIN results carry the expiry note.
 
 ## Changes vs v3.0 Layer-5 draft (`scorer_3.0.py`)
