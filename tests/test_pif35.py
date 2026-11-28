@@ -321,5 +321,19 @@ class TestSpeciesTable(unittest.TestCase):
             self.assertEqual(pif35.score_row(row).residue["status"], "VALID", rid)
 
 
+    def test_cost_ratio_resource_unspecified_band_moves(self):
+        # 3.5 behaviour pinned (P51): cost_ratio carries no resource, and the steep ramp
+        # moves the dog two bands between 1.5 and 1.1
+        dog = next(r for r in TABLE["rows"] if r["id"] == "grok_dog")
+        self.assertEqual(pif35.score_row(dog).band, "PATIENT")
+        low = pif35.score_row(dict(dog, cost_ratio=1.2))
+        self.assertEqual(low.band, "COIN")
+        self.assertAlmostEqual(low.throttle_signal, 0.362, places=3)
+        self.assertEqual(pif35.score_row(dict(dog, cost_ratio=1.1)).band, "EMPTY")
+        # every PATIENT row in the table drops to COIN at 1.2
+        for row in TABLE["rows"]:
+            if pif35.score_row(row).band == "PATIENT":
+                self.assertEqual(pif35.score_row(dict(row, cost_ratio=1.2)).band, "COIN", row["id"])
+
 if __name__ == "__main__":
     unittest.main()
